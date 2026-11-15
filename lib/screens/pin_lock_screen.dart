@@ -206,7 +206,8 @@ class PinLockGate extends StatefulWidget {
   State<PinLockGate> createState() => _PinLockGateState();
 }
 
-class _PinLockGateState extends State<PinLockGate> {
+class _PinLockGateState extends State<PinLockGate>
+    with WidgetsBindingObserver {
   bool _isLoading = true;
   bool _isUnlocked = false;
 
@@ -225,15 +226,29 @@ class _PinLockGateState extends State<PinLockGate> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadPinState();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _firstPinCtrl.dispose();
     _confirmPinCtrl.dispose();
     _setupEmailCtrl.dispose();
     super.dispose();
+  }
+
+  /// Igual que la app de un banco: cada vez que sales de la app, minimizas o apagas la pantalla,
+  /// se cierra la sesión automáticamente y vuelve a pedir tu PIN al regresar.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      if (_expectedPin != null && _isUnlocked) {
+        _lockNow();
+      }
+    }
   }
 
   Future<void> _loadPinState() async {
@@ -490,10 +505,13 @@ class _PinLockGateState extends State<PinLockGate> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     if (_isLoading) {
-      return const Scaffold(
-        backgroundColor: Color(0xFF0B172A),
-        body: Center(
+      return Scaffold(
+        backgroundColor:
+            isDark ? const Color(0xFF0B172A) : const Color(0xFFF8FAFC),
+        body: const Center(
           child: CircularProgressIndicator(color: Color(0xFF10B981)),
         ),
       );
@@ -505,15 +523,21 @@ class _PinLockGateState extends State<PinLockGate> {
 
     // Si es la primera vez que abre la app, mostrar pantalla de creación de PIN a su gusto
     if (_expectedPin == null) {
-      return _buildFirstTimeCreatePinScreen();
+      return _buildFirstTimeCreatePinScreen(isDark);
     }
 
-    return _buildUnlockKeypadScreen();
+    return _buildUnlockKeypadScreen(isDark);
   }
 
-  Widget _buildFirstTimeCreatePinScreen() {
+  Widget _buildFirstTimeCreatePinScreen(bool isDark) {
+    final bgColor = isDark ? const Color(0xFF0B172A) : const Color(0xFFF1F5F9);
+    final cardColor = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
+    final subTextColor = isDark ? Colors.white70 : const Color(0xFF475569);
+    final borderColor = isDark ? Colors.white24 : const Color(0xFFCBD5E1);
+
     return Scaffold(
-      backgroundColor: const Color(0xFF0B172A),
+      backgroundColor: bgColor,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -523,11 +547,20 @@ class _PinLockGateState extends State<PinLockGate> {
               child: Container(
                 padding: const EdgeInsets.all(22),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1E293B),
+                  color: cardColor,
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(
-                    color: const Color(0xFF10B981).withValues(alpha: 0.4),
+                    color: const Color(0xFF10B981).withValues(alpha: 0.45),
                   ),
+                  boxShadow: isDark
+                      ? null
+                      : [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.06),
+                            blurRadius: 20,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -553,19 +586,19 @@ class _PinLockGateState extends State<PinLockGate> {
                       ),
                     ),
                     const SizedBox(height: 14),
-                    const Text(
+                    Text(
                       'Bienvenido a COFIPER',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: textColor,
                         fontSize: 20,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
                     const SizedBox(height: 6),
-                    const Text(
+                    Text(
                       'Crea tu propio código PIN de 4 dígitos para proteger tus finanzas y registra tu correo por si algún día necesitas recuperarlo:',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.white70, fontSize: 12.5),
+                      style: TextStyle(color: subTextColor, fontSize: 12.5),
                     ),
                     const SizedBox(height: 18),
                     TextField(
@@ -573,17 +606,17 @@ class _PinLockGateState extends State<PinLockGate> {
                       keyboardType: TextInputType.number,
                       obscureText: true,
                       maxLength: 4,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: const InputDecoration(
+                      style: TextStyle(color: textColor),
+                      decoration: InputDecoration(
                         labelText: 'Crea tu PIN (4 números)',
-                        labelStyle: TextStyle(color: Colors.white70),
-                        prefixIcon:
-                            Icon(Icons.lock_outline_rounded, color: Colors.white70),
+                        labelStyle: TextStyle(color: subTextColor),
+                        prefixIcon: Icon(Icons.lock_outline_rounded,
+                            color: subTextColor),
                         enabledBorder: OutlineInputBorder(
-                          borderSide: BorderSide(color: Colors.white24),
+                          borderSide: BorderSide(color: borderColor),
                         ),
-                        focusedBorder: OutlineInputBorder(
-                          borderSide: BorderSide(color: Color(0xFF34D399)),
+                        focusedBorder: const OutlineInputBorder(
+                          borderSide: BorderSide(color: Color(0xFF059669)),
                         ),
                       ),
                     ),
@@ -593,17 +626,17 @@ class _PinLockGateState extends State<PinLockGate> {
                       keyboardType: TextInputType.number,
                       obscureText: true,
                       maxLength: 4,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: const InputDecoration(
+                      style: TextStyle(color: textColor),
+                      decoration: InputDecoration(
                         labelText: 'Repite tu PIN de 4 números',
-                        labelStyle: TextStyle(color: Colors.white70),
-                        prefixIcon:
-                            Icon(Icons.check_circle_outline_rounded, color: Colors.white70),
+                        labelStyle: TextStyle(color: subTextColor),
+                        prefixIcon: Icon(Icons.check_circle_outline_rounded,
+                            color: subTextColor),
                         enabledBorder: OutlineInputBorder(
-                          borderSide: BorderSide(color: Colors.white24),
+                          borderSide: BorderSide(color: borderColor),
                         ),
-                        focusedBorder: OutlineInputBorder(
-                          borderSide: BorderSide(color: Color(0xFF34D399)),
+                        focusedBorder: const OutlineInputBorder(
+                          borderSide: BorderSide(color: Color(0xFF059669)),
                         ),
                       ),
                     ),
@@ -611,19 +644,20 @@ class _PinLockGateState extends State<PinLockGate> {
                     TextField(
                       controller: _setupEmailCtrl,
                       keyboardType: TextInputType.emailAddress,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: const InputDecoration(
+                      style: TextStyle(color: textColor),
+                      decoration: InputDecoration(
                         labelText: 'Tu correo para recuperar el PIN',
                         hintText: 'tucorreo@gmail.com',
-                        hintStyle: TextStyle(color: Colors.white38),
-                        labelStyle: TextStyle(color: Colors.white70),
+                        hintStyle:
+                            TextStyle(color: subTextColor.withValues(alpha: 0.6)),
+                        labelStyle: TextStyle(color: subTextColor),
                         prefixIcon:
-                            Icon(Icons.email_outlined, color: Colors.white70),
+                            Icon(Icons.email_outlined, color: subTextColor),
                         enabledBorder: OutlineInputBorder(
-                          borderSide: BorderSide(color: Colors.white24),
+                          borderSide: BorderSide(color: borderColor),
                         ),
-                        focusedBorder: OutlineInputBorder(
-                          borderSide: BorderSide(color: Color(0xFF34D399)),
+                        focusedBorder: const OutlineInputBorder(
+                          borderSide: BorderSide(color: Color(0xFF059669)),
                         ),
                       ),
                     ),
@@ -633,7 +667,7 @@ class _PinLockGateState extends State<PinLockGate> {
                         _errorMessage!,
                         textAlign: TextAlign.center,
                         style: const TextStyle(
-                          color: Color(0xFFFCA5A5),
+                          color: Color(0xFFEF4444),
                           fontWeight: FontWeight.bold,
                           fontSize: 12.5,
                         ),
@@ -645,6 +679,7 @@ class _PinLockGateState extends State<PinLockGate> {
                       child: FilledButton.icon(
                         style: FilledButton.styleFrom(
                           backgroundColor: const Color(0xFF059669),
+                          foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                         ),
                         onPressed: _handleFirstTimeSetup,
@@ -665,9 +700,14 @@ class _PinLockGateState extends State<PinLockGate> {
     );
   }
 
-  Widget _buildUnlockKeypadScreen() {
+  Widget _buildUnlockKeypadScreen(bool isDark) {
+    final bgColor = isDark ? const Color(0xFF0B172A) : const Color(0xFFF8FAFC);
+    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
+    final subTextColor = isDark ? Colors.white70 : const Color(0xFF475569);
+    final dotBorderColor = isDark ? Colors.white38 : const Color(0xFF94A3B8);
+
     return Scaffold(
-      backgroundColor: const Color(0xFF0B172A),
+      backgroundColor: bgColor,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -705,20 +745,20 @@ class _PinLockGateState extends State<PinLockGate> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text(
+                Text(
                   'COFIPER · Acceso Seguro',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: textColor,
                     fontSize: 21,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
                 const SizedBox(height: 6),
-                const Text(
+                Text(
                   'Ingresa tu PIN personal de 4 dígitos',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: Colors.white70,
+                    color: subTextColor,
                     fontSize: 13,
                   ),
                 ),
@@ -735,13 +775,13 @@ class _PinLockGateState extends State<PinLockGate> {
                       height: 18,
                       decoration: BoxDecoration(
                         color: filled
-                            ? const Color(0xFF34D399)
+                            ? const Color(0xFF10B981)
                             : Colors.transparent,
                         shape: BoxShape.circle,
                         border: Border.all(
                           color: filled
-                              ? const Color(0xFF34D399)
-                              : Colors.white38,
+                              ? const Color(0xFF10B981)
+                              : dotBorderColor,
                           width: 2,
                         ),
                       ),
@@ -754,7 +794,7 @@ class _PinLockGateState extends State<PinLockGate> {
                   Text(
                     _errorMessage!,
                     style: const TextStyle(
-                      color: Color(0xFFFCA5A5),
+                      color: Color(0xFFEF4444),
                       fontWeight: FontWeight.bold,
                       fontSize: 13,
                     ),
@@ -767,11 +807,11 @@ class _PinLockGateState extends State<PinLockGate> {
                   constraints: const BoxConstraints(maxWidth: 290),
                   child: Column(
                     children: [
-                      _buildKeyRow(['1', '2', '3']),
+                      _buildKeyRow(['1', '2', '3'], isDark),
                       const SizedBox(height: 14),
-                      _buildKeyRow(['4', '5', '6']),
+                      _buildKeyRow(['4', '5', '6'], isDark),
                       const SizedBox(height: 14),
-                      _buildKeyRow(['7', '8', '9']),
+                      _buildKeyRow(['7', '8', '9'], isDark),
                       const SizedBox(height: 14),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -779,6 +819,7 @@ class _PinLockGateState extends State<PinLockGate> {
                           const SizedBox(width: 68, height: 68),
                           _PinKeyButton(
                             label: '0',
+                            isDark: isDark,
                             onTap: () => _onDigitPressed('0'),
                           ),
                           SizedBox(
@@ -786,9 +827,9 @@ class _PinLockGateState extends State<PinLockGate> {
                             height: 68,
                             child: IconButton(
                               onPressed: _onBackspace,
-                              icon: const Icon(
+                              icon: Icon(
                                 Icons.backspace_outlined,
-                                color: Colors.white70,
+                                color: subTextColor,
                               ),
                             ),
                           ),
@@ -801,15 +842,19 @@ class _PinLockGateState extends State<PinLockGate> {
                 const SizedBox(height: 18),
                 TextButton.icon(
                   onPressed: _showForgotPinDialog,
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.help_outline_rounded,
-                    color: Color(0xFF38BDF8),
+                    color: isDark
+                        ? const Color(0xFF38BDF8)
+                        : const Color(0xFF0284C7),
                     size: 18,
                   ),
-                  label: const Text(
+                  label: Text(
                     '¿Olvidaste tu PIN? Recupéralo con tu correo',
                     style: TextStyle(
-                      color: Color(0xFF38BDF8),
+                      color: isDark
+                          ? const Color(0xFF38BDF8)
+                          : const Color(0xFF0284C7),
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -822,13 +867,14 @@ class _PinLockGateState extends State<PinLockGate> {
     );
   }
 
-  Widget _buildKeyRow(List<String> digits) {
+  Widget _buildKeyRow(List<String> digits, bool isDark) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: digits
           .map(
             (d) => _PinKeyButton(
               label: d,
+              isDark: isDark,
               onTap: () => _onDigitPressed(d),
             ),
           )
@@ -839,10 +885,12 @@ class _PinLockGateState extends State<PinLockGate> {
 
 class _PinKeyButton extends StatelessWidget {
   final String label;
+  final bool isDark;
   final VoidCallback onTap;
 
   const _PinKeyButton({
     required this.label,
+    required this.isDark,
     required this.onTap,
   });
 
@@ -852,7 +900,9 @@ class _PinKeyButton extends StatelessWidget {
       width: 68,
       height: 68,
       child: Material(
-        color: Colors.white.withValues(alpha: 0.08),
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.08)
+            : const Color(0xFFE2E8F0),
         shape: const CircleBorder(),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -860,8 +910,8 @@ class _PinKeyButton extends StatelessWidget {
           child: Center(
             child: Text(
               label,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: isDark ? Colors.white : const Color(0xFF0F172A),
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
               ),

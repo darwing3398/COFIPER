@@ -9,10 +9,16 @@ import 'pin_lock_screen.dart';
 
 class HomeShell extends StatefulWidget {
   final FinanceController controller;
+  final bool isDarkMode;
+  final bool isAutoDayNight;
+  final VoidCallback? onToggleDayNight;
 
   const HomeShell({
     super.key,
     required this.controller,
+    this.isDarkMode = false,
+    this.isAutoDayNight = true,
+    this.onToggleDayNight,
   });
 
   @override
@@ -70,29 +76,47 @@ class _HomeShellState extends State<HomeShell> {
             ),
             actions: [
               IconButton(
+                tooltip: widget.isAutoDayNight
+                    ? (widget.isDarkMode
+                        ? 'Modo Noche Automático (Toca para cambiar a Claro)'
+                        : 'Modo Día Automático (Toca para cambiar a Oscuro)')
+                    : 'Tema Manual (Toca para volver a Día/Noche Automático)',
+                icon: Icon(
+                  widget.isDarkMode
+                      ? Icons.nightlight_round
+                      : Icons.wb_sunny_rounded,
+                  color: widget.isDarkMode
+                      ? const Color(0xFFFDE68A)
+                      : const Color(0xFFF59E0B),
+                ),
+                onPressed: widget.onToggleDayNight,
+              ),
+              IconButton(
                 tooltip: 'Conectar Bancos / Leer Gmail',
                 icon: const Icon(Icons.mark_email_read_rounded),
                 onPressed: () =>
                     showBankGmailSyncModal(context, widget.controller),
               ),
-              IconButton(
-                tooltip: 'Rehacer cálculos de las 2 quincenas',
-                icon: const Icon(Icons.auto_fix_high_rounded),
-                onPressed: () {
-                  widget.controller.recalculateAll(
-                    respectCollectedQ1: false,
-                    resetManualOverrides: true,
-                    logRecalculation: true,
-                  );
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      behavior: SnackBarBehavior.floating,
-                      content: Text(
-                        '¡Cálculos de las 2 quincenas actualizados! (${widget.controller.strategy.title})',
-                      ),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
+                child: FilledButton.tonalIcon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor:
+                        const Color(0xFFEF4444).withValues(alpha: 0.14),
+                    foregroundColor: const Color(0xFFDC2626),
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  onPressed: () => PinLockGate.lockApp(context),
+                  icon: const Icon(Icons.logout_rounded, size: 16),
+                  label: const Text(
+                    'Salir',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12.5,
                     ),
-                  );
-                },
+                  ),
+                ),
               ),
               PopupMenuButton<String>(
                 tooltip: 'Opciones',
@@ -101,6 +125,20 @@ class _HomeShellState extends State<HomeShell> {
                     PinLockGate.showChangePinDialog(context);
                   } else if (value == 'lock_now') {
                     PinLockGate.lockApp(context);
+                  } else if (value == 'recalc') {
+                    widget.controller.recalculateAll(
+                      respectCollectedQ1: false,
+                      resetManualOverrides: true,
+                      logRecalculation: true,
+                    );
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        behavior: SnackBarBehavior.floating,
+                        content: Text(
+                          '¡Cálculos de las 2 quincenas actualizados! (${widget.controller.strategy.title})',
+                        ),
+                      ),
+                    );
                   } else if (value == 'new_month') {
                     _showNewMonthDialog(context);
                   } else if (value == 'copy_report') {
@@ -142,8 +180,16 @@ class _HomeShellState extends State<HomeShell> {
                   const PopupMenuItem(
                     value: 'lock_now',
                     child: ListTile(
-                      leading: Icon(Icons.lock_rounded),
-                      title: Text('Bloquear App Ahora'),
+                      leading: Icon(Icons.logout_rounded, color: Colors.redAccent),
+                      title: Text('Salir / Cerrar Sesión (Pedir PIN)'),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'recalc',
+                    child: ListTile(
+                      leading: Icon(Icons.auto_fix_high_rounded),
+                      title: Text('Rehacer Cálculos de las 2 Quincenas'),
                       contentPadding: EdgeInsets.zero,
                     ),
                   ),
