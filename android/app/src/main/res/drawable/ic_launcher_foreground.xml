@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Anillo exterior dorado/esmeralda dentro de la zona segura (24..84) -->
+    <path
+        android:fillColor="#2234D399"
+        android:strokeColor="#FF34D399"
+        android:strokeWidth="2.2"
+        android:pathData="M54,23 A31,31 0 1,1 53.9,23 Z"/>
+
+    <!-- Base de billetera / plataforma financiera -->
+    <path
+        android:fillColor="#FF10B981"
+        android:pathData="M33,71 L75,71 A2,2 0 0,1 75,75 L33,75 A2,2 0 0,1 33,71 Z"/>
+
+    <!-- Barra Quincena 1 (Azul Celeste) -->
+    <path
+        android:fillColor="#FF38BDF8"
+        android:pathData="M36,56 L44,56 A2,2 0 0,1 46,58 L46,69 L34,69 L34,58 A2,2 0 0,1 36,56 Z"/>
+
+    <!-- Barra Quincena 2 (Esmeralda Brillante) -->
+    <path
+        android:fillColor="#FF34D399"
+        android:pathData="M50,46 L58,46 A2,2 0 0,1 60,48 L60,69 L48,69 L48,48 A2,2 0 0,1 50,46 Z"/>
+
+    <!-- Barra Meta / Crecimiento (Dorado Finanzas) -->
+    <path
+        android:fillColor="#FFFBBF24"
+        android:pathData="M64,36 L72,36 A2,2 0 0,1 74,38 L74,69 L62,69 L62,38 A2,2 0 0,1 64,36 Z"/>
+
+    <!-- Flecha de ascenso financiero -->
+    <path
+        android:strokeColor="#FFFDE68A"
+        android:strokeWidth="3.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"
+        android:pathData="M35,50 L49,38 L57,42 L70,29"/>
+    <path
+        android:strokeColor="#FFFDE68A"
+        android:strokeWidth="3.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"
+        android:pathData="M62,29 L70,29 L70,37"/>
+</vector>

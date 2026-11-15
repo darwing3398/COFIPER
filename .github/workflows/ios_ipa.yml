@@ -1,0 +1,37 @@
+name: Compilar COFIPER para iPhone (.ipa sin Mac)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build_ios_ipa:
+    name: Compilar iOS en Mac de GitHub
+    runs-on: macos-latest
+
+    steps:
+      - name: 1. Descargar código del proyecto
+        uses: actions/checkout@v4
+
+      - name: 2. Instalar Flutter en el servidor Mac
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: 3. Instalar dependencias de COFIPER
+        run: flutter pub get
+
+      - name: 4. Compilar aplicación iOS (Sin firma para instalar con Sideloadly/AltStore en Windows)
+        run: |
+          flutter build ios --release --no-codesign
+          cd build/ios/iphoneos
+          mkdir -p Payload
+          cp -r Runner.app Payload/
+          zip -r COFIPER-iOS.ipa Payload
+
+      - name: 5. Entregar archivo COFIPER-iOS.ipa listo para descargar en Windows
+        uses: actions/upload-artifact@v4
+        with:
+          name: COFIPER-iPhone-IPA
+          path: build/ios/iphoneos/COFIPER-iOS.ipa
