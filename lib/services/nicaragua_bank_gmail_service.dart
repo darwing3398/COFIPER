@@ -236,15 +236,6 @@ class NicaraguaBankGmailService {
       );
     }
 
-    if (cleanPass.length < 8) {
-      return const GmailSyncResponse(
-        success: false,
-        statusMessage:
-            'Ingresa tu Contraseña de Aplicación de Google (16 letras).',
-        newTransactions: [],
-      );
-    }
-
     final rawResult = await fetchGmailImapRawMessages(
       cleanEmail: cleanEmail,
       cleanPass: cleanPass,
@@ -289,7 +280,7 @@ class NicaraguaBankGmailService {
         continue;
       }
 
-      final uidMatch = RegExp(r'UID\s+([0-9]+)').firstMatch(block);
+      final uidMatch = RegExp(r'UID\s+([A-Za-z0-9_\-]+)').firstMatch(block);
       final uid = uidMatch?.group(1);
       final decodedText = _cleanEmailBody(block);
 

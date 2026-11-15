@@ -1,18 +1,55 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/financial_models.dart';
 import '../state/finance_controller.dart';
+
+const String _kGoogleAppsScriptCode = '''
+function doGet(e) {
+  var action = (e && e.parameter && e.parameter.action) ? e.parameter.action : 'sync';
+  if (action === 'recover') {
+    var to = (e && e.parameter && e.parameter.to) ? e.parameter.to : Session.getActiveUser().getEmail();
+    var pin = (e && e.parameter && e.parameter.pin) ? e.parameter.pin : '';
+    MailApp.sendEmail(to, 'Recuperacion de PIN - App COFIPER', 'Hola, tu PIN actual de 4 digitos en COFIPER es: ' + pin);
+    return ContentService.createTextOutput(JSON.stringify({ sent: true }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+  var query = 'BAC OR Credomatic OR Banpro OR Promerica OR LAFISE OR Ficohsa OR BDF OR Avanz';
+  var threads = GmailApp.search(query, 0, 25);
+  var blocks = [];
+  for (var i = 0; i < threads.length; i++) {
+    var msgs = threads[i].getMessages();
+    for (var j = 0; j < msgs.length; j++) {
+      var m = msgs[j];
+      blocks.push('UID ' + m.getId() + ' FROM: ' + m.getFrom() + ' SUBJECT: ' + m.getSubject() + ' ' + m.getPlainBody());
+    }
+  }
+  return ContentService.createTextOutput(JSON.stringify({
+    success: true,
+    statusMessage: 'OK',
+    blocks: blocks
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+''';
 
 Future<void> showBankGmailSyncModal(
   BuildContext context,
   FinanceController controller,
 ) async {
+  final prefs = await SharedPreferences.getInstance();
+  final savedScriptUrl = prefs.getString('cofiper_google_script_url_v1') ?? '';
+
   final emailCtrl = TextEditingController(text: controller.gmailAddress);
   final passCtrl = TextEditingController(text: controller.gmailAppPassword);
+  final scriptUrlCtrl = TextEditingController(text: savedScriptUrl);
   final rateCtrl = TextEditingController(
     text: controller.usdToCordobaRate.toStringAsFixed(4),
   );
   final pasteAlertCtrl = TextEditingController();
   bool showPassword = false;
+
+  if (!context.mounted) return;
 
   await showModalBottomSheet<void>(
     context: context,
@@ -77,7 +114,7 @@ Future<void> showBankGmailSyncModal(
                       ),
                       const SizedBox(height: 12),
 
-                      // Bloque 1: Conexión directa IMAP a Gmail
+                      // Bloque 1: Conexión directa a Gmail (Safari Google Script + IMAP Nativo)
                       Container(
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
@@ -101,7 +138,7 @@ Future<void> showBankGmailSyncModal(
                             ),
                             const SizedBox(height: 4),
                             const Text(
-                              'Lee únicamente los correos de alertas de compras de tus bancos y los suma al saldo de cada tarjeta en Córdobas (C\$).',
+                              'Lee automáticamente los correos de alertas de compras de tus bancos y los suma al saldo de cada tarjeta en Córdobas (C\$).',
                               style: TextStyle(fontSize: 12),
                             ),
                             const SizedBox(height: 12),
@@ -117,28 +154,94 @@ Future<void> showBankGmailSyncModal(
                               ),
                             ),
                             const SizedBox(height: 10),
-                            TextField(
-                              controller: passCtrl,
-                              obscureText: !showPassword,
-                              decoration: InputDecoration(
-                                labelText:
-                                    'Contraseña de Aplicación Google (16 letras)',
-                                hintText: 'xxxx xxxx xxxx xxxx',
-                                prefixIcon: const Icon(Icons.vpn_key_outlined),
-                                suffixIcon: IconButton(
-                                  icon: Icon(
-                                    showPassword
-                                        ? Icons.visibility_off_rounded
-                                        : Icons.visibility_rounded,
-                                  ),
-                                  onPressed: () => setModalState(
-                                      () => showPassword = !showPassword),
+                            if (kIsWeb) ...[
+                              TextField(
+                                controller: scriptUrlCtrl,
+                                keyboardType: TextInputType.url,
+                                decoration: const InputDecoration(
+                                  labelText:
+                                      'Enlace Puente Google para Safari (script.google.com)',
+                                  hintText:
+                                      'https://script.google.com/macros/s/.../exec',
+                                  prefixIcon: Icon(Icons.cloud_sync_rounded),
+                                  border: OutlineInputBorder(),
+                                  isDense: true,
                                 ),
-                                border: const OutlineInputBorder(),
-                                isDense: true,
                               ),
-                            ),
-                            const SizedBox(height: 10),
+                              const SizedBox(height: 8),
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton.icon(
+                                  onPressed: () {
+                                    Clipboard.setData(
+                                      const ClipboardData(
+                                          text: _kGoogleAppsScriptCode),
+                                    );
+                                    ScaffoldMessenger.of(ctx).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          '¡Código de conexión copiado! Pégalo en script.google.com -> Implementar -> Aplicación web.',
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  icon: const Icon(Icons.copy_rounded, size: 18),
+                                  label: const Text(
+                                    'Copiar Código para Activar Gmail en Safari (1 vez)',
+                                    style: TextStyle(fontSize: 12),
+                                  ),
+                                ),
+                              ),
+                              ExpansionTile(
+                                tilePadding: EdgeInsets.zero,
+                                title: const Text(
+                                  '¿Cómo activar el enlace para Safari en 1 minuto?',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF4F46E5),
+                                  ),
+                                ),
+                                children: const [
+                                  Padding(
+                                    padding: EdgeInsets.only(bottom: 8),
+                                    child: Text(
+                                      'Como Safari bloquea el puerto IMAP tradicional, Google permite crear tu propio puente seguro gratis:\n'
+                                      '1. Toca el botón de arriba "Copiar Código para Activar Gmail en Safari".\n'
+                                      '2. Abre script.google.com en tu navegador y toca "Nuevo proyecto".\n'
+                                      '3. Borra lo que salga, pega el código copiado y toca arriba en "Implementar" → "Nueva implementación".\n'
+                                      '4. Elige Tipo: "Aplicación web" y en "Quién tiene acceso" elige "Cualquier persona".\n'
+                                      '5. Copia el link que termina en /exec y pégalo arriba. ¡Listo para siempre en tu iPhone!',
+                                      style: TextStyle(fontSize: 12),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ] else ...[
+                              TextField(
+                                controller: passCtrl,
+                                obscureText: !showPassword,
+                                decoration: InputDecoration(
+                                  labelText:
+                                      'Contraseña de Aplicación Google (16 letras)',
+                                  hintText: 'xxxx xxxx xxxx xxxx',
+                                  prefixIcon: const Icon(Icons.vpn_key_outlined),
+                                  suffixIcon: IconButton(
+                                    icon: Icon(
+                                      showPassword
+                                          ? Icons.visibility_off_rounded
+                                          : Icons.visibility_rounded,
+                                    ),
+                                    onPressed: () => setModalState(
+                                        () => showPassword = !showPassword),
+                                  ),
+                                  border: const OutlineInputBorder(),
+                                  isDense: true,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                            ],
+                            const SizedBox(height: 6),
                             TextField(
                               controller: rateCtrl,
                               keyboardType:
@@ -153,32 +256,8 @@ Future<void> showBankGmailSyncModal(
                                 isDense: true,
                               ),
                             ),
-                            const SizedBox(height: 8),
-                            ExpansionTile(
-                              tilePadding: EdgeInsets.zero,
-                              title: const Text(
-                                '¿Cómo obtengo mi Contraseña de Aplicación de 16 letras?',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF4F46E5),
-                                ),
-                              ),
-                              children: const [
-                                Padding(
-                                  padding: EdgeInsets.only(bottom: 8),
-                                  child: Text(
-                                    '1. Entra a myaccount.google.com en tu navegador.\n'
-                                    '2. Ve a la pestaña "Seguridad" → "Verificación en 2 pasos".\n'
-                                    '3. Baja hasta "Contraseñas de aplicaciones".\n'
-                                    '4. Escribe "COFIPER" y pulsa Crear: Google te dará 16 letras. Pégalas arriba (solo se hace una vez).',
-                                    style: TextStyle(fontSize: 12),
-                                  ),
-                                ),
-                              ],
-                            ),
                             if (controller.lastBankSyncMessage != null) ...[
-                              const SizedBox(height: 6),
+                              const SizedBox(height: 8),
                               Container(
                                 padding: const EdgeInsets.all(10),
                                 decoration: BoxDecoration(
@@ -198,6 +277,14 @@ Future<void> showBankGmailSyncModal(
                                 onPressed: isSyncing
                                     ? null
                                     : () async {
+                                        if (scriptUrlCtrl.text
+                                            .trim()
+                                            .isNotEmpty) {
+                                          await prefs.setString(
+                                            'cofiper_google_script_url_v1',
+                                            scriptUrlCtrl.text.trim(),
+                                          );
+                                        }
                                         final parsedRate = double.tryParse(
                                               rateCtrl.text
                                                   .replaceAll(',', '.'),
@@ -205,7 +292,9 @@ Future<void> showBankGmailSyncModal(
                                             36.6243;
                                         await controller.syncWithGmailBanks(
                                           emailOverride: emailCtrl.text,
-                                          passwordOverride: passCtrl.text,
+                                          passwordOverride: kIsWeb
+                                              ? scriptUrlCtrl.text.trim()
+                                              : passCtrl.text,
                                           rateOverride: parsedRate,
                                         );
                                       },

@@ -18,6 +18,14 @@ Future<Map<String, dynamic>> fetchGmailImapRawMessages({
   required String cleanEmail,
   required String cleanPass,
 }) async {
+  if (cleanPass.length < 8) {
+    return {
+      'success': false,
+      'statusMessage':
+          'Ingresa tu Contraseña de Aplicación de Google (16 letras).',
+      'blocks': <String>[],
+    };
+  }
   SecureSocket? socket;
   try {
     socket = await SecureSocket.connect(

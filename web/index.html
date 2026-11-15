@@ -33,6 +33,24 @@
         }
       });
     }
+
+    // Puente HTTPS nativo para sincronizar Gmail desde Safari iOS vía Google Apps Script
+    window.cofiperFetchJson = async function(url) {
+      try {
+        const resp = await fetch(url, {
+          method: 'GET',
+          redirect: 'follow',
+          cache: 'no-store'
+        });
+        return await resp.text();
+      } catch (err) {
+        return JSON.stringify({
+          success: false,
+          statusMessage: 'Error de red en Safari: ' + String(err),
+          blocks: []
+        });
+      }
+    };
   </script>
 </head>
 <body style="background-color: #0F172A;">
