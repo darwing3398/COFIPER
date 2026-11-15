@@ -109,6 +109,99 @@ Future<Map<String, dynamic>> fetchGmailImapRawMessages({
   }
 }
 
+/// Envía por SMTP sobre TLS (puerto 465 de smtp.gmail.com) el PIN de recuperación al correo del usuario
+/// si ya configuró su Contraseña de Aplicación de Google.
+Future<bool> sendRecoveryEmailViaSmtp({
+  required String recipientEmail,
+  required String currentPin,
+  required String senderGmail,
+  required String senderAppPassword,
+}) async {
+  final cleanSender = senderGmail.trim();
+  final cleanPass = senderAppPassword.replaceAll(' ', '').trim();
+  final cleanRecipient = recipientEmail.trim();
+
+  if (cleanSender.isEmpty || cleanPass.length < 8 || cleanRecipient.isEmpty) {
+    return false;
+  }
+
+  SecureSocket? socket;
+  try {
+    socket = await SecureSocket.connect(
+      'smtp.gmail.com',
+      465,
+      timeout: const Duration(seconds: 8),
+    );
+
+    final buffer = StringBuffer();
+    _ImapWaiter waiter = _ImapWaiter();
+
+    socket.listen(
+      (data) {
+        buffer.write(utf8.decode(data, allowMalformed: true));
+        waiter.checkCompletion(buffer.toString());
+      },
+      onError: (Object err) => waiter.completeWithError(err.toString()),
+      onDone: () => waiter.completeIfPending(buffer.toString()),
+    );
+
+    await waiter.waitForTag('220 ');
+
+    buffer.clear();
+    waiter = _ImapWaiter();
+    socket.write('EHLO cofiper\r\n');
+    await waiter.waitForTag('250 ');
+
+    final authStr = base64Encode(utf8.encode('\u0000$cleanSender\u0000$cleanPass'));
+    buffer.clear();
+    waiter = _ImapWaiter();
+    socket.write('AUTH PLAIN $authStr\r\n');
+    final authResp = await waiter.waitForTag('235 ');
+    if (!authResp.contains('235')) {
+      await socket.close();
+      return false;
+    }
+
+    buffer.clear();
+    waiter = _ImapWaiter();
+    socket.write('MAIL FROM:<$cleanSender>\r\n');
+    await waiter.waitForTag('250 ');
+
+    buffer.clear();
+    waiter = _ImapWaiter();
+    socket.write('RCPT TO:<$cleanRecipient>\r\n');
+    await waiter.waitForTag('250 ');
+
+    buffer.clear();
+    waiter = _ImapWaiter();
+    socket.write('DATA\r\n');
+    await waiter.waitForTag('354 ');
+
+    buffer.clear();
+    waiter = _ImapWaiter();
+    final msg = 'From: COFIPER Seguridad <$cleanSender>\r\n'
+        'To: <$cleanRecipient>\r\n'
+        'Subject: Recuperacion de PIN - App COFIPER\r\n'
+        'Content-Type: text/plain; charset=utf-8\r\n\r\n'
+        'Hola,\r\n\r\n'
+        'Has solicitado recuperar tu PIN de acceso a tu aplicacion financiera COFIPER.\r\n'
+        'Tu PIN actual de 4 digitos es: $currentPin\r\n\r\n'
+        'Con este codigo puedes entrar nuevamente o cambiar tu PIN desde el menu de opciones.\r\n'
+        '.\r\n';
+    socket.write(msg);
+    await waiter.waitForTag('250 ');
+
+    socket.write('QUIT\r\n');
+    await socket.close();
+    return true;
+  } catch (_) {
+    try {
+      await socket?.close();
+    } catch (_) {}
+    return false;
+  }
+}
+
 class _ImapWaiter {
   String _targetTag = '';
   bool _done = false;

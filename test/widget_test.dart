@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cofiper/main.dart';
@@ -104,18 +105,20 @@ void main() {
     expect(updatedBac, initialBac + 1200.0);
   });
 
-  testWidgets('COFIPER pide PIN de seguridad al iniciar y desbloquea con 1234', (WidgetTester tester) async {
+  testWidgets('COFIPER permite crear PIN propio de 4 digitos y correo al iniciar por primera vez', (WidgetTester tester) async {
     await tester.pumpWidget(const CofiperApp());
-    expect(find.textContaining('COFIPER · Acceso Seguro'), findsOneWidget);
+    await tester.pumpAndSettle();
 
-    // Ingresar PIN 1234
-    await tester.tap(find.text('1'));
-    await tester.pump();
-    await tester.tap(find.text('2'));
-    await tester.pump();
-    await tester.tap(find.text('3'));
-    await tester.pump();
-    await tester.tap(find.text('4'));
+    expect(find.textContaining('Bienvenido a COFIPER'), findsOneWidget);
+
+    final textFields = find.byType(TextField);
+    expect(textFields, findsNWidgets(3));
+
+    await tester.enterText(textFields.at(0), '2580');
+    await tester.enterText(textFields.at(1), '2580');
+    await tester.enterText(textFields.at(2), 'darwingjoserr23@gmail.com');
+
+    await tester.tap(find.text('Guardar mi PIN y Entrar'));
     await tester.pumpAndSettle();
 
     expect(find.textContaining('COFIPER · Control en Córdobas (C\$)'), findsOneWidget);
