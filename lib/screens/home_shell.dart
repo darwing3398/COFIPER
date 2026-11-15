@@ -5,6 +5,7 @@ import '../services/recalculation_engine.dart';
 import '../state/finance_controller.dart';
 import '../widgets/bank_gmail_sync_modal.dart';
 import '../widgets/entry_modals.dart';
+import 'pin_lock_screen.dart';
 
 class HomeShell extends StatefulWidget {
   final FinanceController controller;
@@ -96,7 +97,11 @@ class _HomeShellState extends State<HomeShell> {
               PopupMenuButton<String>(
                 tooltip: 'Opciones',
                 onSelected: (value) {
-                  if (value == 'new_month') {
+                  if (value == 'change_pin') {
+                    PinLockGate.showChangePinDialog(context);
+                  } else if (value == 'lock_now') {
+                    PinLockGate.lockApp(context);
+                  } else if (value == 'new_month') {
                     _showNewMonthDialog(context);
                   } else if (value == 'copy_report') {
                     final report = widget.controller.generateTextReport();
@@ -126,6 +131,22 @@ class _HomeShellState extends State<HomeShell> {
                   }
                 },
                 itemBuilder: (ctx) => [
+                  const PopupMenuItem(
+                    value: 'change_pin',
+                    child: ListTile(
+                      leading: Icon(Icons.key_rounded, color: Color(0xFF059669)),
+                      title: Text('Cambiar mi PIN de Seguridad'),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'lock_now',
+                    child: ListTile(
+                      leading: Icon(Icons.lock_rounded),
+                      title: Text('Bloquear App Ahora'),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
                   const PopupMenuItem(
                     value: 'new_month',
                     child: ListTile(

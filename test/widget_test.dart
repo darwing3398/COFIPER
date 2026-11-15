@@ -104,8 +104,20 @@ void main() {
     expect(updatedBac, initialBac + 1200.0);
   });
 
-  testWidgets('COFIPER muestra moneda en Córdobas y botón de conexión bancaria Gmail', (WidgetTester tester) async {
+  testWidgets('COFIPER pide PIN de seguridad al iniciar y desbloquea con 1234', (WidgetTester tester) async {
     await tester.pumpWidget(const CofiperApp());
+    expect(find.textContaining('COFIPER · Acceso Seguro'), findsOneWidget);
+
+    // Ingresar PIN 1234
+    await tester.tap(find.text('1'));
+    await tester.pump();
+    await tester.tap(find.text('2'));
+    await tester.pump();
+    await tester.tap(find.text('3'));
+    await tester.pump();
+    await tester.tap(find.text('4'));
+    await tester.pumpAndSettle();
+
     expect(find.textContaining('COFIPER · Control en Córdobas (C\$)'), findsOneWidget);
     expect(find.textContaining('Sincronizar Tarjetas desde Gmail'), findsOneWidget);
   });

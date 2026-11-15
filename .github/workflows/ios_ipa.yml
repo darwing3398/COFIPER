@@ -27,7 +27,7 @@ jobs:
       - name: 3. Instalar dependencias y compilar PWA para iOS
         run: |
           flutter pub get
-          flutter build web --release --base-href "/COFIPER/"
+          flutter build web --release --base-href "/COFIPER/" --pwa-strategy=none
 
       - name: 4. Publicar en rama gh-pages para GitHub Pages
         uses: peaceiris/actions-gh-pages@v4

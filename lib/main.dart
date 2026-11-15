@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'screens/home_shell.dart';
+import 'screens/pin_lock_screen.dart';
 import 'state/finance_controller.dart';
 
 void main() {
@@ -8,7 +9,12 @@ void main() {
 }
 
 class CofiperApp extends StatefulWidget {
-  const CofiperApp({super.key});
+  final bool enablePinGate;
+
+  const CofiperApp({
+    super.key,
+    this.enablePinGate = true,
+  });
 
   @override
   State<CofiperApp> createState() => _CofiperAppState();
@@ -31,6 +37,7 @@ class _CofiperAppState extends State<CofiperApp> {
 
   @override
   Widget build(BuildContext context) {
+    final shell = HomeShell(controller: _controller);
     return MaterialApp(
       title: 'COFIPER - Control Quincenal',
       debugShowCheckedModeBanner: false,
@@ -50,7 +57,7 @@ class _CofiperAppState extends State<CofiperApp> {
           brightness: Brightness.dark,
         ),
       ),
-      home: HomeShell(controller: _controller),
+      home: widget.enablePinGate ? PinLockGate(child: shell) : shell,
     );
   }
 }
