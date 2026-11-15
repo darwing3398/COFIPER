@@ -1,5 +1,5 @@
-import 'dart:io';
 import '../models/financial_models.dart';
+import 'platform_network_helper.dart';
 
 class AdvisorInsight {
   final String title;
@@ -285,16 +285,7 @@ class RecalculationEngine {
     required List<IncomeItem> incomes,
     required List<ExpenseItem> expenses,
   }) async {
-    bool hasInternet = false;
-    if (!Platform.environment.containsKey('FLUTTER_TEST')) {
-      try {
-        final result = await InternetAddress.lookup('one.one.one.one')
-            .timeout(const Duration(seconds: 3));
-        hasInternet = result.isNotEmpty && result[0].rawAddress.isNotEmpty;
-      } catch (_) {
-        hasInternet = false;
-      }
-    }
+    final bool hasInternet = await checkDeviceInternetConnection();
 
     final List<AdvisorInsight> dynamicTips = [];
 

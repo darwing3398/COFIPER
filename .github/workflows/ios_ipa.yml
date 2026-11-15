@@ -1,13 +1,42 @@
-name: Compilar COFIPER para iPhone (.ipa sin Mac)
+name: Compilar COFIPER (iPhone .ipa + Web App Permanente iOS PWA)
 
 on:
   workflow_dispatch:
   push:
     branches: [ main, master ]
 
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
 jobs:
+  build_pwa_and_deploy_pages:
+    name: Publicar App Permanente iPhone (Safari PWA)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 1. Descargar código del proyecto
+        uses: actions/checkout@v4
+
+      - name: 2. Instalar Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: 3. Instalar dependencias y compilar PWA para iOS
+        run: |
+          flutter pub get
+          flutter build web --release --base-href "/COFIPER/"
+
+      - name: 4. Publicar en rama gh-pages para GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./build/web
+
   build_ios_ipa:
-    name: Compilar iOS en Mac de GitHub
+    name: Compilar iOS .ipa en Mac de GitHub
     runs-on: macos-latest
 
     steps:
@@ -22,7 +51,7 @@ jobs:
       - name: 3. Instalar dependencias de COFIPER
         run: flutter pub get
 
-      - name: 4. Compilar aplicación iOS (Sin firma para instalar con Sideloadly/AltStore en Windows)
+      - name: 4. Compilar aplicación iOS (.ipa)
         run: |
           flutter build ios --release --no-codesign
           cd build/ios/iphoneos
@@ -30,7 +59,7 @@ jobs:
           cp -r Runner.app Payload/
           zip -r COFIPER-iOS.ipa Payload
 
-      - name: 5. Entregar archivo COFIPER-iOS.ipa listo para descargar en Windows
+      - name: 5. Entregar archivo COFIPER-iOS.ipa
         uses: actions/upload-artifact@v4
         with:
           name: COFIPER-iPhone-IPA
