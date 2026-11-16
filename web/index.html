@@ -24,12 +24,18 @@
   <title>COFIPER</title>
   <link rel="manifest" href="manifest.json">
   <script>
-    // Desactiva cualquier Service Worker antiguo en caché para que el icono del iPhone
-    // cargue siempre los cambios nuevos automáticamente al abrir la app.
+    // Limpia cualquier Service Worker y CacheStorage de Safari iOS para que siempre cargue la última versión
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.getRegistrations().then(function(registrations) {
         for (let registration of registrations) {
           registration.unregister();
+        }
+      });
+    }
+    if ('caches' in window) {
+      caches.keys().then(function(names) {
+        for (let name of names) {
+          caches.delete(name);
         }
       });
     }
@@ -54,6 +60,14 @@
   </script>
 </head>
 <body style="background-color: #0F172A;">
-  <script src="flutter_bootstrap.js" async></script>
+  <script>
+    // Carga flutter_bootstrap.js con sello de tiempo único para evitar caché de Safari en iPhone
+    (function() {
+      var s = document.createElement('script');
+      s.src = 'flutter_bootstrap.js?v=' + Date.now();
+      s.async = true;
+      document.body.appendChild(s);
+    })();
+  </script>
 </body>
 </html>
