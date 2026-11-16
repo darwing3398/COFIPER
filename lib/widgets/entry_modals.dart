@@ -500,7 +500,9 @@ Future<void> showExpenseFormModal(
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Fechas de Calendario (Toca para elegir en el calendario):',
+                    isDebtOrCard
+                        ? 'Fechas de Corte y Límite de Pago (Calendario):'
+                        : 'Fecha en que se hizo este pago (Solo registro, sin vencimiento):',
                     style: Theme.of(ctx).textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.w600,
                         ),
@@ -536,7 +538,7 @@ Future<void> showExpenseFormModal(
                   _CalendarDateSelectorTile(
                     label: isDebtOrCard
                         ? 'Fecha Límite de Pago (Sin Intereses / Mora)'
-                        : 'Fecha de Pago en Calendario (Opcional)',
+                        : 'Fecha en que se realizó el pago (Registro)',
                     selectedDate: selectedDueDate,
                     icon: Icons.event_available_rounded,
                     accentColor: const Color(0xFF059669),
@@ -546,7 +548,9 @@ Future<void> showExpenseFormModal(
                         initialDate: selectedDueDate ?? DateTime.now(),
                         firstDate: DateTime(DateTime.now().year - 1, 1, 1),
                         lastDate: DateTime(DateTime.now().year + 5, 12, 31),
-                        helpText: 'SELECCIONA LA FECHA LÍMITE DE PAGO',
+                        helpText: isDebtOrCard
+                            ? 'SELECCIONA LA FECHA LÍMITE DE PAGO'
+                            : 'SELECCIONA LA FECHA EN QUE SE HIZO EL PAGO',
                         cancelText: 'Cancelar',
                         confirmText: 'Aceptar',
                       );

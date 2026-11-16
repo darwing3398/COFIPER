@@ -447,6 +447,10 @@ class ExpenseItem {
   double get progress =>
       totalAmount <= 0 ? 1.0 : (collectedTotal / totalAmount).clamp(0.0, 1.0);
 
+  bool get isCreditCardOrLoan =>
+      category == ExpenseCategory.creditCard ||
+      category == ExpenseCategory.loan;
+
   bool get isFullyPaid =>
       (q1Allocation <= 0.01 || q1Collected) &&
       (q2Allocation <= 0.01 || q2Collected);
@@ -474,8 +478,10 @@ class ExpenseItem {
     return cutoffDay != null ? (cutoffDay! - currentDay) : null;
   }
 
-  /// Devuelve un aviso claro de corte o fecha límite de pago si el gasto aún no está pagado al 100%.
+  /// Devuelve un aviso claro de corte o fecha límite de pago EXCLUSIVAMENTE para Tarjetas y Préstamos.
+  /// En gastos como comida, alquiler o servicios, la fecha es solo un registro de cuándo se pagó y no genera alerta de vencimiento.
   String? buildPaymentAlertMessage(int currentDay) {
+    if (!isCreditCardOrLoan) return null;
     if (isFullyPaid) return null;
     if (dueDay == null &&
         cutoffDay == null &&

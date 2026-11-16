@@ -1280,7 +1280,16 @@ class _ExpensesAndSplitTab extends StatelessWidget {
                   exp.title,
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
-                subtitle: Text('${exp.category.label} • ${exp.splitMode.label}'),
+                subtitle: Text(
+                  [
+                    exp.category.label,
+                    exp.splitMode.label,
+                    if (exp.formattedDueDate != null)
+                      exp.isCreditCardOrLoan
+                          ? 'Fecha límite: ${exp.formattedDueDate}'
+                          : 'Pagado el: ${exp.formattedDueDate}',
+                  ].join(' • '),
+                ),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -1391,10 +1400,13 @@ class _InteractiveSplitExpenseCard extends StatelessWidget {
                       Text(
                         [
                           expense.category.label,
-                          if (expense.formattedCutoffDate != null)
+                          if (expense.isCreditCardOrLoan &&
+                              expense.formattedCutoffDate != null)
                             'Corte: ${expense.formattedCutoffDate}',
                           if (expense.formattedDueDate != null)
-                            'Pago: ${expense.formattedDueDate}',
+                            expense.isCreditCardOrLoan
+                                ? 'Fecha límite: ${expense.formattedDueDate}'
+                                : 'Pagado el: ${expense.formattedDueDate}',
                         ].join(' • '),
                         style: TextStyle(
                           fontSize: 12,
