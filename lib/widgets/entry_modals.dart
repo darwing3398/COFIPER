@@ -1194,3 +1194,468 @@ class _PayrollRow extends StatelessWidget {
     );
   }
 }
+
+class _QuickPresetItem {
+  final String label;
+  final ExpenseCategory category;
+  final IconData icon;
+
+  const _QuickPresetItem({
+    required this.label,
+    required this.category,
+    required this.icon,
+  });
+}
+
+const List<_QuickPresetItem> _kQuickPresets = [
+  _QuickPresetItem(
+    label: 'Almuerzo / Comida',
+    category: ExpenseCategory.food,
+    icon: Icons.restaurant_rounded,
+  ),
+  _QuickPresetItem(
+    label: 'Gasolina / Taxi',
+    category: ExpenseCategory.transport,
+    icon: Icons.local_gas_station_rounded,
+  ),
+  _QuickPresetItem(
+    label: 'Café / Antojo / Delivery',
+    category: ExpenseCategory.antExpense,
+    icon: Icons.local_cafe_rounded,
+  ),
+  _QuickPresetItem(
+    label: 'Supermercado / Pulpería',
+    category: ExpenseCategory.food,
+    icon: Icons.shopping_cart_rounded,
+  ),
+  _QuickPresetItem(
+    label: 'Recarga / Internet',
+    category: ExpenseCategory.utilities,
+    icon: Icons.phone_iphone_rounded,
+  ),
+  _QuickPresetItem(
+    label: 'Otro Gasto del Día',
+    category: ExpenseCategory.antExpense,
+    icon: Icons.bolt_rounded,
+  ),
+];
+
+/// Punto 4: Modal Relámpago para registrar un "Gasto del Día" en 3 segundos.
+Future<void> showQuickDailyExpenseModal(
+  BuildContext context,
+  FinanceController controller,
+) async {
+  int selectedPresetIndex = 0;
+  final amountCtrl = TextEditingController();
+  final customTitleCtrl = TextEditingController();
+  bool isFirstQuincena = DateTime.now().day <= 15;
+
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    backgroundColor: Theme.of(context).colorScheme.surface,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+    builder: (ctx) {
+      return StatefulBuilder(
+        builder: (ctx, setModalState) {
+          final activePreset = _kQuickPresets[selectedPresetIndex];
+
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 20,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const CircleAvatar(
+                        backgroundColor: Color(0xFFF59E0B),
+                        foregroundColor: Colors.white,
+                        child: Icon(Icons.bolt_rounded),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '⚡ Gasto Rápido del Día (3 seg)',
+                              style: Theme.of(ctx)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                            const Text(
+                              'Elige un ícono, pon el monto en C\$ y se resta al instante',
+                              style:
+                                  TextStyle(fontSize: 11.5, color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    '1. ¿En qué gastaste hoy?',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: List.generate(_kQuickPresets.length, (i) {
+                      final item = _kQuickPresets[i];
+                      final isSel = i == selectedPresetIndex;
+                      return ChoiceChip(
+                        avatar: Icon(
+                          item.icon,
+                          size: 16,
+                          color: isSel ? Colors.white : item.category.color,
+                        ),
+                        label: Text(
+                          item.label,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight:
+                                isSel ? FontWeight.bold : FontWeight.normal,
+                            color: isSel ? Colors.white : null,
+                          ),
+                        ),
+                        selected: isSel,
+                        selectedColor: const Color(0xFF0F766E),
+                        onSelected: (_) {
+                          setModalState(() => selectedPresetIndex = i);
+                        },
+                      );
+                    }),
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: amountCtrl,
+                    autofocus: true,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                      labelText: '2. Monto gastado en Córdobas (C\$)',
+                      hintText: 'Ej. 220',
+                      prefixText: 'C\$ ',
+                      prefixIcon: Icon(Icons.payments_outlined),
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: customTitleCtrl,
+                    textCapitalization: TextCapitalization.sentences,
+                    decoration: InputDecoration(
+                      labelText:
+                          'Detalle opcional (Si lo dejas vacío se guarda como "${activePreset.label}")',
+                      prefixIcon: const Icon(Icons.edit_note_rounded),
+                      border: const OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    '3. ¿De cuál quincena sale este gasto?',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                  const SizedBox(height: 6),
+                  SizedBox(
+                    width: double.infinity,
+                    child: SegmentedButton<bool>(
+                      segments: const [
+                        ButtonSegment(
+                          value: true,
+                          icon: Icon(Icons.looks_one_rounded),
+                          label: Text('1ra Quincena (1-15)'),
+                        ),
+                        ButtonSegment(
+                          value: false,
+                          icon: Icon(Icons.looks_two_rounded),
+                          label: Text('2da Quincena (16-30)'),
+                        ),
+                      ],
+                      selected: {isFirstQuincena},
+                      onSelectionChanged: (vals) {
+                        setModalState(() => isFirstQuincena = vals.first);
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFFD97706),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      icon: const Icon(Icons.bolt_rounded),
+                      label: const Text(
+                        'Restar de mi Quincena Ahora',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      onPressed: () {
+                        final amount = double.tryParse(
+                                amountCtrl.text.replaceAll(',', '.')) ??
+                            0.0;
+                        if (amount <= 0) {
+                          ScaffoldMessenger.of(ctx).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                  'Escribe un monto en Córdobas mayor a 0.'),
+                            ),
+                          );
+                          return;
+                        }
+                        final finalTitle = customTitleCtrl.text.trim().isNotEmpty
+                            ? customTitleCtrl.text.trim()
+                            : activePreset.label;
+
+                        controller.addQuickDailyExpense(
+                          title: finalTitle,
+                          category: activePreset.category,
+                          amount: amount,
+                          isFirstQuincena: isFirstQuincena,
+                        );
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            behavior: SnackBarBehavior.floating,
+                            content: Text(
+                              '⚡ Se restó ${formatCordobas(amount)} ($finalTitle) de tu ${isFirstQuincena ? "1ra Quincena" : "2da Quincena"}.',
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    },
+  );
+}
+
+/// Punto 5: Modal para trasladar el "Sobrante de Quincena" (a la siguiente quincena o a una Alcancía de Ahorro).
+Future<void> showTransferLeftoverModal(
+  BuildContext context,
+  FinanceController controller, {
+  required bool fromFirstQuincena,
+  required double availableFreeCash,
+}) async {
+  double selectedAmount = availableFreeCash;
+  String? selectedGoalId = controller.savingsGoals.firstOrNull?.id;
+
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    backgroundColor: Theme.of(context).colorScheme.surface,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+    builder: (ctx) {
+      return StatefulBuilder(
+        builder: (ctx, setModalState) {
+          final goals = controller.savingsGoals;
+
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 20,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const CircleAvatar(
+                        backgroundColor: Color(0xFF059669),
+                        foregroundColor: Colors.white,
+                        child: Icon(Icons.currency_exchange_rounded),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '🔄 Aprovechar Sobrante de ${fromFirstQuincena ? "1ra Quincena" : "2da Quincena"}',
+                              style: Theme.of(ctx)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                            Text(
+                              'Tienes ${formatCordobas(availableFreeCash)} libres disponibles',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF059669),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    'Monto a trasladar o ahorrar: ${formatCordobas(selectedAmount)}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                  if (availableFreeCash > 100)
+                    Slider(
+                      value: selectedAmount.clamp(1.0, availableFreeCash),
+                      min: 1.0,
+                      max: availableFreeCash,
+                      divisions: 20,
+                      label: formatCordobas(selectedAmount, showDecimals: false),
+                      onChanged: (v) => setModalState(
+                          () => selectedAmount = (v * 100).roundToDouble() / 100.0),
+                    ),
+                  const SizedBox(height: 8),
+                  if (fromFirstQuincena) ...[
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF2563EB),
+                          padding: const EdgeInsets.symmetric(vertical: 13),
+                        ),
+                        icon: const Icon(Icons.fast_forward_rounded),
+                        label: Text(
+                          'Pasar ${formatCordobas(selectedAmount, showDecimals: false)} a la 2da Quincena',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        onPressed: () {
+                          controller.transferLeftoverQ1ToQ2(selectedAmount);
+                          Navigator.pop(ctx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              behavior: SnackBarBehavior.floating,
+                              content: Text(
+                                '🔄 Se pasaron ${formatCordobas(selectedAmount)} libres a tu 2da Quincena.',
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    const Center(
+                      child: Text(
+                        '— O guárdalo en una de tus Alcancías —',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  if (goals.isEmpty)
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.savings_rounded),
+                        label: const Text(
+                            'Crear una Alcancía de Ahorro Primero'),
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          showSavingsGoalModal(context, controller);
+                        },
+                      ),
+                    )
+                  else ...[
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedGoalId,
+                      decoration: const InputDecoration(
+                        labelText: 'Selecciona tu Alcancía destino',
+                        prefixIcon: Icon(Icons.savings_outlined),
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      items: goals.map((g) {
+                        return DropdownMenuItem(
+                          value: g.id,
+                          child: Text(
+                            '${g.title} (${formatCordobas(g.savedAmount, showDecimals: false)} / ${formatCordobas(g.targetAmount, showDecimals: false)})',
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (v) {
+                        if (v != null) {
+                          setModalState(() => selectedGoalId = v);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF059669),
+                          padding: const EdgeInsets.symmetric(vertical: 13),
+                        ),
+                        icon: const Icon(Icons.savings_rounded),
+                        label: Text(
+                          'Enviar ${formatCordobas(selectedAmount, showDecimals: false)} a esta Alcancía',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        onPressed: selectedGoalId == null
+                            ? null
+                            : () {
+                                controller.transferQuincenaLeftoverToSavingsGoal(
+                                  goalId: selectedGoalId!,
+                                  amount: selectedAmount,
+                                  fromFirstQuincena: fromFirstQuincena,
+                                );
+                                Navigator.pop(ctx);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    behavior: SnackBarBehavior.floating,
+                                    content: Text(
+                                      '🐷 ¡Se enviaron ${formatCordobas(selectedAmount)} de tu sobrante a tu Alcancía!',
+                                    ),
+                                  ),
+                                );
+                              },
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    },
+  );
+}

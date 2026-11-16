@@ -777,6 +777,132 @@ class FinanceController extends ChangeNotifier {
     _persistState();
   }
 
+  /// Registra en 3 segundos un gasto rápido del día en la quincena elegida,
+  /// marcándolo como pagado con la fecha de hoy.
+  void addQuickDailyExpense({
+    required String title,
+    required ExpenseCategory category,
+    required double amount,
+    required bool isFirstQuincena,
+  }) {
+    if (amount <= 0) return;
+    final now = DateTime.now();
+    final newExp = ExpenseItem(
+      id: 'exp_quick_${now.microsecondsSinceEpoch}',
+      title: title.trim(),
+      category: category,
+      totalAmount: amount,
+      splitMode: isFirstQuincena ? SplitMode.onlyQ1 : SplitMode.onlyQ2,
+      q1Allocation: isFirstQuincena ? amount : 0.0,
+      q2Allocation: isFirstQuincena ? 0.0 : amount,
+      q1Collected: isFirstQuincena,
+      q2Collected: !isFirstQuincena,
+      dueDay: now.day,
+      dueDate: now,
+      notes: 'Gasto rápido del día',
+    );
+
+    final current = activePeriod;
+    _updateActivePeriod(
+      current.copyWith(expenses: [newExp, ...current.expenses]),
+    );
+
+    _recordActivity(
+      type: ActivityType.expenseAdded,
+      title: '⚡ Gasto Rápido: ${newExp.title}',
+      detail:
+          '${isFirstQuincena ? "1ra Quincena" : "2da Quincena"} • Pagado hoy (${ExpenseItem.formatCalendarDate(now)})',
+      amount: amount,
+    );
+
+    recalculateAll();
+  }
+
+  /// Traslada el dinero libre sobrante de la 1ra Quincena hacia la 2da Quincena.
+  void transferLeftoverQ1ToQ2(double amountToTransfer) {
+    if (amountToTransfer <= 0) return;
+    final now = DateTime.now();
+    final current = activePeriod;
+
+    final outExpenseQ1 = ExpenseItem(
+      id: 'exp_tr_${now.microsecondsSinceEpoch}',
+      title: 'Sobrante trasladado a 2da Quincena',
+      category: ExpenseCategory.subscription,
+      totalAmount: amountToTransfer,
+      splitMode: SplitMode.onlyQ1,
+      q1Allocation: amountToTransfer,
+      q2Allocation: 0.0,
+      q1Collected: true,
+      dueDay: now.day,
+      dueDate: now,
+      notes: 'Pasado de 1ra a 2da Quincena',
+    );
+
+    final inIncomeQ2 = IncomeItem(
+      id: 'inc_tr_${now.microsecondsSinceEpoch}',
+      title: 'Sobrante recibido de 1ra Quincena',
+      amount: amountToTransfer,
+      frequency: IncomeFrequency.onlyQ2,
+      origin: IncomeOrigin.fixedSalary,
+      noteOrWeek: 'Sobrante de 1ra Quincena',
+    );
+
+    _updateActivePeriod(
+      current.copyWith(
+        incomes: [...current.incomes, inIncomeQ2],
+        expenses: [outExpenseQ1, ...current.expenses],
+      ),
+    );
+
+    _recordActivity(
+      type: ActivityType.manualSplitAdjusted,
+      title: '🔄 Sobrante pasado a 2da Quincena',
+      detail:
+          'Se trasladaron ${formatCordobas(amountToTransfer)} libres de la 1ra a la 2da Quincena.',
+      amount: amountToTransfer,
+    );
+
+    recalculateAll();
+  }
+
+  /// Envía el sobrante libre de una quincena directamente a una Alcancía de Ahorro
+  /// y lo descuenta del dinero libre de esa quincena.
+  void transferQuincenaLeftoverToSavingsGoal({
+    required String goalId,
+    required double amount,
+    required bool fromFirstQuincena,
+  }) {
+    if (amount <= 0) return;
+    final targetGoal =
+        _savingsGoals.where((g) => g.id == goalId).firstOrNull;
+    if (targetGoal == null) return;
+
+    contributeToSavingsGoal(goalId, amount);
+
+    final now = DateTime.now();
+    final savingsExpense = ExpenseItem(
+      id: 'exp_sav_${now.microsecondsSinceEpoch}',
+      title: 'Ahorro a Alcancía: ${targetGoal.title}',
+      category: ExpenseCategory.subscription,
+      totalAmount: amount,
+      splitMode: fromFirstQuincena ? SplitMode.onlyQ1 : SplitMode.onlyQ2,
+      q1Allocation: fromFirstQuincena ? amount : 0.0,
+      q2Allocation: fromFirstQuincena ? 0.0 : amount,
+      q1Collected: fromFirstQuincena,
+      q2Collected: !fromFirstQuincena,
+      dueDay: now.day,
+      dueDate: now,
+      notes: 'Sobrante guardado en alcancía',
+    );
+
+    final current = activePeriod;
+    _updateActivePeriod(
+      current.copyWith(expenses: [savingsExpense, ...current.expenses]),
+    );
+
+    recalculateAll();
+  }
+
   void clearAllData() {
     final current = activePeriod;
     _updateActivePeriod(

@@ -615,7 +615,24 @@ class _SimpleHomeTab extends StatelessWidget {
           ],
         ),
 
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFD97706),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+            ),
+            onPressed: () => showQuickDailyExpenseModal(context, controller),
+            icon: const Icon(Icons.bolt_rounded, size: 20),
+            label: const Text(
+              '⚡ Gasto Rápido del Día en 3 Segundos (Almuerzo, Gasolina, Café...)',
+              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
         Row(
           children: [
             Expanded(
@@ -739,6 +756,17 @@ class _SimpleHomeTab extends StatelessWidget {
               ? '📌 De tu pago de Fin de Mes (1ra Quincena) guarda ${formatCordobas(summary.q1VaultTarget)} para juntarlo con la 2da Quincena y pagar tus tarjetas/préstamos.'
               : 'Aquí solo aparece el dinero y gastos que hayas registrado para los días 1 al 15.',
           accentColor: const Color(0xFF2563EB),
+          leftoverActionLabel: summary.q1FreeCash > 0.01
+              ? '🔄 Pasar Sobrante (${formatCordobas(summary.q1FreeCash, showDecimals: false)}) a 2da Quincena o Alcancía'
+              : null,
+          onTransferLeftover: summary.q1FreeCash > 0.01
+              ? () => showTransferLeftoverModal(
+                    context,
+                    controller,
+                    fromFirstQuincena: true,
+                    availableFreeCash: summary.q1FreeCash,
+                  )
+              : null,
         ),
 
         const SizedBox(height: 12),
@@ -754,6 +782,17 @@ class _SimpleHomeTab extends StatelessWidget {
               ? '📌 Aún no has ingresado tu pago del Día 15 (2da Quincena). Cuando te paguen el 15, regístralo en "+ Sueldo" eligiendo 2da Quincena.'
               : '📌 Une lo que guardaste en la 1ra Quincena + los ${formatCordobas(summary.q2Expenses)} de este pago del Día 15 para cancelar tus tarjetas y préstamos.',
           accentColor: const Color(0xFF7C3AED),
+          leftoverActionLabel: summary.q2FreeCash > 0.01
+              ? '🐷 Enviar Sobrante (${formatCordobas(summary.q2FreeCash, showDecimals: false)}) a mi Alcancía de Ahorro'
+              : null,
+          onTransferLeftover: summary.q2FreeCash > 0.01
+              ? () => showTransferLeftoverModal(
+                    context,
+                    controller,
+                    fromFirstQuincena: false,
+                    availableFreeCash: summary.q2FreeCash,
+                  )
+              : null,
         ),
 
         const SizedBox(height: 16),
@@ -1040,6 +1079,8 @@ class _ClearQuincenaCard extends StatelessWidget {
   final double freeAmount;
   final String adviceFooter;
   final Color accentColor;
+  final String? leftoverActionLabel;
+  final VoidCallback? onTransferLeftover;
 
   const _ClearQuincenaCard({
     required this.quincenaTitle,
@@ -1049,6 +1090,8 @@ class _ClearQuincenaCard extends StatelessWidget {
     required this.freeAmount,
     required this.adviceFooter,
     required this.accentColor,
+    this.leftoverActionLabel,
+    this.onTransferLeftover,
   });
 
   @override
@@ -1162,6 +1205,28 @@ class _ClearQuincenaCard extends StatelessWidget {
               style: const TextStyle(fontSize: 12),
             ),
           ),
+          if (leftoverActionLabel != null && onTransferLeftover != null) ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.tonalIcon(
+                style: FilledButton.styleFrom(
+                  backgroundColor:
+                      const Color(0xFF059669).withValues(alpha: 0.14),
+                  foregroundColor: const Color(0xFF047857),
+                ),
+                onPressed: onTransferLeftover,
+                icon: const Icon(Icons.currency_exchange_rounded, size: 17),
+                label: Text(
+                  leftoverActionLabel!,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
