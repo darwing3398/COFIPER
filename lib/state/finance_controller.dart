@@ -8,6 +8,7 @@ class FinanceController extends ChangeNotifier {
   String _activePeriodId = 'period_nov_2026';
   List<MonthlyPeriodRecord> _periods = [];
   List<ActivityLogEntry> _activityLogs = [];
+  List<SavingsGoalItem> _savingsGoals = [];
   OnlineAdviceResult? _onlineAdvice;
   bool _isCheckingOnline = false;
 
@@ -27,6 +28,7 @@ class FinanceController extends ChangeNotifier {
   String get activePeriodId => _activePeriodId;
   List<MonthlyPeriodRecord> get periods => List.unmodifiable(_periods);
   List<ActivityLogEntry> get activityLogs => List.unmodifiable(_activityLogs);
+  List<SavingsGoalItem> get savingsGoals => List.unmodifiable(_savingsGoals);
   OnlineAdviceResult? get onlineAdvice => _onlineAdvice;
   bool get isCheckingOnline => _isCheckingOnline;
 
@@ -54,6 +56,26 @@ class FinanceController extends ChangeNotifier {
   List<IncomeItem> get extraSalesAndBusinessIncomes =>
       incomes.where((i) => i.isExtraSaleOrBusiness).toList();
 
+  /// Total bruto vendido en negocios/ventas extras en el mes.
+  double get totalExtraGrossSales => extraSalesAndBusinessIncomes.fold(
+      0.0, (sum, item) => sum + item.grossMonthlyTotal);
+
+  /// Total de capital invertido / costo de mercadería a reponer en el mes.
+  double get totalExtraInvestmentCost => extraSalesAndBusinessIncomes.fold(
+      0.0, (sum, item) => sum + item.monthlyInvestmentCost);
+
+  /// Ganancia neta libre de las ventas extras (Ventas Brutas - Costo de Inversión).
+  double get totalExtraNetProfit => extraSalesAndBusinessIncomes.fold(
+      0.0, (sum, item) => sum + item.monthlyTotal);
+
+  /// Tarjetas o préstamos con fecha de corte o fecha límite de pago activa y pendiente de pago.
+  List<ExpenseItem> get expensesWithDateAlerts {
+    final today = DateTime.now().day;
+    return expenses
+        .where((e) => e.buildPaymentAlertMessage(today) != null)
+        .toList();
+  }
+
   List<ExpenseItem> get twoQuincenaExpenses =>
       expenses.where((e) => e.collectsFromTwoQuincenas).toList();
 
@@ -77,6 +99,9 @@ class FinanceController extends ChangeNotifier {
       _periods = persisted.periods;
       _activePeriodId = persisted.activePeriodId;
       _activityLogs = persisted.activityLogs;
+      if (persisted.savingsGoals.isNotEmpty) {
+        _savingsGoals = persisted.savingsGoals;
+      }
       _gmailAddress = persisted.gmailAddress;
       _gmailAppPassword = persisted.gmailAppPassword;
       _usdToCordobaRate = persisted.usdToCordobaRate;
@@ -93,6 +118,7 @@ class FinanceController extends ChangeNotifier {
       activePeriodId: _activePeriodId,
       periods: _periods,
       activityLogs: _activityLogs,
+      savingsGoals: _savingsGoals,
       gmailAddress: _gmailAddress,
       gmailAppPassword: _gmailAppPassword,
       usdToCordobaRate: _usdToCordobaRate,
@@ -412,6 +438,7 @@ class FinanceController extends ChangeNotifier {
     required IncomeFrequency frequency,
     IncomeOrigin origin = IncomeOrigin.fixedSalary,
     String? noteOrWeek,
+    double investmentCost = 0.0,
   }) {
     final newItem = IncomeItem(
       id: 'inc_${DateTime.now().microsecondsSinceEpoch}',
@@ -420,6 +447,7 @@ class FinanceController extends ChangeNotifier {
       frequency: frequency,
       origin: origin,
       noteOrWeek: noteOrWeek,
+      investmentCost: investmentCost,
     );
     final current = activePeriod;
     _updateActivePeriod(
@@ -431,8 +459,9 @@ class FinanceController extends ChangeNotifier {
       title: origin == IncomeOrigin.extraSaleOrBusiness
           ? 'Venta / Negocio Extra: ${newItem.title}'
           : 'Ingreso Fijo: ${newItem.title}',
-      detail:
-          '${frequency.shortLabel} (1ra Quincena: ${formatCordobas(newItem.q1Amount)} | 2da Quincena: ${formatCordobas(newItem.q2Amount)})',
+      detail: investmentCost > 0
+          ? 'Venta: ${formatCordobas(amount)} • Costo: ${formatCordobas(investmentCost)} • Ganancia Neta: ${formatCordobas(newItem.monthlyTotal)}'
+          : '${frequency.shortLabel} (1ra Quincena: ${formatCordobas(newItem.q1Amount)} | 2da Quincena: ${formatCordobas(newItem.q2Amount)})',
       amount: newItem.monthlyTotal,
     );
 
@@ -656,6 +685,63 @@ class FinanceController extends ChangeNotifier {
     _persistState();
   }
 
+  // -------------------- METAS DE AHORRO (ALCANCÍAS POR QUINCENA) --------------------
+
+  void addSavingsGoal({
+    required String title,
+    required double targetAmount,
+    required double quincenaGoalAmount,
+    double initialSavedAmount = 0.0,
+  }) {
+    final newGoal = SavingsGoalItem(
+      id: 'goal_${DateTime.now().microsecondsSinceEpoch}',
+      title: title.trim(),
+      targetAmount: targetAmount,
+      savedAmount: initialSavedAmount,
+      quincenaGoalAmount: quincenaGoalAmount,
+    );
+    _savingsGoals = [newGoal, ..._savingsGoals];
+    _recordActivity(
+      type: ActivityType.incomeAdded,
+      title: 'Nueva Meta de Ahorro: ${newGoal.title}',
+      detail:
+          'Meta: ${formatCordobas(targetAmount)} • Aporte quincenal: ${formatCordobas(quincenaGoalAmount)}',
+      amount: targetAmount,
+    );
+    notifyListeners();
+    _persistState();
+  }
+
+  void contributeToSavingsGoal(String goalId, double amountToAdd) {
+    if (amountToAdd <= 0) return;
+    SavingsGoalItem? updatedGoal;
+    _savingsGoals = _savingsGoals.map((g) {
+      if (g.id != goalId) return g;
+      updatedGoal = g.copyWith(
+        savedAmount: (g.savedAmount + amountToAdd).clamp(0.0, g.targetAmount * 2),
+      );
+      return updatedGoal!;
+    }).toList();
+
+    if (updatedGoal != null) {
+      _recordActivity(
+        type: ActivityType.vaultQ1Toggled,
+        title: 'Abono a Meta: ${updatedGoal!.title}',
+        detail:
+            'Abonaste ${formatCordobas(amountToAdd)} → Acumulado: ${formatCordobas(updatedGoal!.savedAmount)} de ${formatCordobas(updatedGoal!.targetAmount)}',
+        amount: amountToAdd,
+      );
+      notifyListeners();
+      _persistState();
+    }
+  }
+
+  void deleteSavingsGoal(String goalId) {
+    _savingsGoals = _savingsGoals.where((g) => g.id != goalId).toList();
+    notifyListeners();
+    _persistState();
+  }
+
   void clearAllData() {
     final current = activePeriod;
     _updateActivePeriod(
@@ -797,6 +883,22 @@ class FinanceController extends ChangeNotifier {
 
     _periods = [demoPeriod];
     _activePeriodId = demoPeriod.id;
+    _savingsGoals = const [
+      SavingsGoalItem(
+        id: 'goal_emergency',
+        title: 'Fondo de Emergencia Personal',
+        targetAmount: 15000.0,
+        savedAmount: 3000.0,
+        quincenaGoalAmount: 1000.0,
+      ),
+      SavingsGoalItem(
+        id: 'goal_inventory',
+        title: 'Capital para Mercadería / Negocio',
+        targetAmount: 10000.0,
+        savedAmount: 2500.0,
+        quincenaGoalAmount: 1250.0,
+      ),
+    ];
     _activityLogs = [
       ActivityLogEntry(
         id: 'log_init_2',

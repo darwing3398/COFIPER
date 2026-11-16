@@ -255,6 +255,10 @@ class IncomeItem {
   final IncomeOrigin origin;
   final String? noteOrWeek;
 
+  /// Costo del producto / capital invertido cuando es una Venta o Negocio Extra (en C$).
+  /// La ganancia neta libre para gastar es `amount - investmentCost`.
+  final double investmentCost;
+
   const IncomeItem({
     required this.id,
     required this.title,
@@ -262,41 +266,56 @@ class IncomeItem {
     required this.frequency,
     this.origin = IncomeOrigin.fixedSalary,
     this.noteOrWeek,
+    this.investmentCost = 0.0,
   });
 
   bool get isExtraSaleOrBusiness =>
       origin == IncomeOrigin.extraSaleOrBusiness;
 
-  /// Monto que entra en la 1ra Quincena.
+  /// Ganancia Neta libre para gastar después de separar el capital invertido.
+  double get netAmount =>
+      investmentCost > 0 ? (amount - investmentCost).clamp(0.0, amount) : amount;
+
+  /// Monto neto disponible que entra en la 1ra Quincena.
   double get q1Amount {
     switch (frequency) {
       case IncomeFrequency.biweekly:
-        return amount;
+        return netAmount;
       case IncomeFrequency.monthlySplit:
-        return amount / 2.0;
+        return netAmount / 2.0;
       case IncomeFrequency.onlyQ1:
-        return amount;
+        return netAmount;
       case IncomeFrequency.onlyQ2:
         return 0.0;
     }
   }
 
-  /// Monto que entra en la 2da Quincena.
+  /// Monto neto disponible que entra en la 2da Quincena.
   double get q2Amount {
     switch (frequency) {
       case IncomeFrequency.biweekly:
-        return amount;
+        return netAmount;
       case IncomeFrequency.monthlySplit:
-        return amount / 2.0;
+        return netAmount / 2.0;
       case IncomeFrequency.onlyQ1:
         return 0.0;
       case IncomeFrequency.onlyQ2:
-        return amount;
+        return netAmount;
     }
   }
 
-  /// Total mensual que representa este ingreso.
+  /// Total mensual neto que representa este ingreso para tus gastos.
   double get monthlyTotal => q1Amount + q2Amount;
+
+  /// Monto bruto total vendido antes de restar la inversión.
+  double get grossMonthlyTotal =>
+      frequency == IncomeFrequency.biweekly ? amount * 2.0 : amount;
+
+  /// Capital a reponer / costo de inversión del mes.
+  double get monthlyInvestmentCost =>
+      frequency == IncomeFrequency.biweekly
+          ? investmentCost * 2.0
+          : investmentCost;
 
   IncomeItem copyWith({
     String? id,
@@ -305,6 +324,7 @@ class IncomeItem {
     IncomeFrequency? frequency,
     IncomeOrigin? origin,
     String? noteOrWeek,
+    double? investmentCost,
   }) {
     return IncomeItem(
       id: id ?? this.id,
@@ -313,6 +333,7 @@ class IncomeItem {
       frequency: frequency ?? this.frequency,
       origin: origin ?? this.origin,
       noteOrWeek: noteOrWeek ?? this.noteOrWeek,
+      investmentCost: investmentCost ?? this.investmentCost,
     );
   }
 
@@ -323,6 +344,7 @@ class IncomeItem {
         'frequency': frequency.name,
         'origin': origin.name,
         'noteOrWeek': noteOrWeek,
+        'investmentCost': investmentCost,
       };
 
   factory IncomeItem.fromJson(Map<String, dynamic> json) {
@@ -339,6 +361,7 @@ class IncomeItem {
         orElse: () => IncomeOrigin.fixedSalary,
       ),
       noteOrWeek: json['noteOrWeek'] as String?,
+      investmentCost: (json['investmentCost'] as num?)?.toDouble() ?? 0.0,
     );
   }
 }
@@ -397,6 +420,45 @@ class ExpenseItem {
 
   double get progress =>
       totalAmount <= 0 ? 1.0 : (collectedTotal / totalAmount).clamp(0.0, 1.0);
+
+  bool get isFullyPaid =>
+      (q1Allocation <= 0.01 || q1Collected) &&
+      (q2Allocation <= 0.01 || q2Collected);
+
+  /// Días restantes para la fecha límite de pago en el mes actual (negativo si ya pasó).
+  int? daysUntilDue(int currentDay) =>
+      dueDay != null ? (dueDay! - currentDay) : null;
+
+  /// Días restantes para la fecha de corte de la tarjeta.
+  int? daysUntilCutoff(int currentDay) =>
+      cutoffDay != null ? (cutoffDay! - currentDay) : null;
+
+  /// Devuelve un aviso claro de corte o fecha límite de pago si el gasto aún no está pagado al 100%.
+  String? buildPaymentAlertMessage(int currentDay) {
+    if (isFullyPaid) return null;
+    if (dueDay == null && cutoffDay == null) return null;
+
+    if (dueDay != null) {
+      final diffDue = dueDay! - currentDay;
+      if (diffDue < 0) {
+        return '🚨 ¡Vencida! Fecha límite fue el día $dueDay (Pendiente: ${formatCordobas(remainingToCollect)})';
+      } else if (diffDue == 0) {
+        return '🚨 ¡Vence HOY (Día $dueDay)! Pagar ${formatCordobas(remainingToCollect)} para evitar mora';
+      } else if (diffDue <= 5) {
+        return '⚠️ Faltan $diffDue día(s) para fecha límite de pago (Día $dueDay • Pendiente: ${formatCordobas(remainingToCollect)})';
+      } else {
+        return '📅 Fecha de pago: Día $dueDay (en $diffDue días)${cutoffDay != null ? " • Corte: Día $cutoffDay" : ""}';
+      }
+    }
+
+    if (cutoffDay != null) {
+      final diffCut = cutoffDay! - currentDay;
+      if (diffCut >= 0 && diffCut <= 4) {
+        return '✂️ Tu tarjeta corta en $diffCut día(s) (Día $cutoffDay)';
+      }
+    }
+    return null;
+  }
 
   ExpenseItem copyWith({
     String? id,
@@ -809,5 +871,136 @@ class MonthlyPlanSummary {
         recommendedMaxPct: 10.0,
       ),
     ];
+  }
+}
+
+/// Meta de Ahorro / "Alcancía por Quincena" (en Córdobas C$).
+class SavingsGoalItem {
+  final String id;
+  final String title;
+  final double targetAmount;
+  final double savedAmount;
+  final double quincenaGoalAmount;
+
+  const SavingsGoalItem({
+    required this.id,
+    required this.title,
+    required this.targetAmount,
+    required this.savedAmount,
+    required this.quincenaGoalAmount,
+  });
+
+  double get remainingAmount =>
+      (targetAmount - savedAmount).clamp(0.0, targetAmount);
+
+  double get progress =>
+      targetAmount <= 0 ? 1.0 : (savedAmount / targetAmount).clamp(0.0, 1.0);
+
+  bool get isCompleted => savedAmount >= targetAmount && targetAmount > 0;
+
+  int get estimatedQuincenasLeft {
+    if (isCompleted || quincenaGoalAmount <= 0) return 0;
+    return (remainingAmount / quincenaGoalAmount).ceil();
+  }
+
+  SavingsGoalItem copyWith({
+    String? id,
+    String? title,
+    double? targetAmount,
+    double? savedAmount,
+    double? quincenaGoalAmount,
+  }) {
+    return SavingsGoalItem(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      targetAmount: targetAmount ?? this.targetAmount,
+      savedAmount: savedAmount ?? this.savedAmount,
+      quincenaGoalAmount: quincenaGoalAmount ?? this.quincenaGoalAmount,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'targetAmount': targetAmount,
+        'savedAmount': savedAmount,
+        'quincenaGoalAmount': quincenaGoalAmount,
+      };
+
+  factory SavingsGoalItem.fromJson(Map<String, dynamic> json) {
+    return SavingsGoalItem(
+      id: json['id'] as String,
+      title: json['title'] as String,
+      targetAmount: (json['targetAmount'] as num).toDouble(),
+      savedAmount: (json['savedAmount'] as num).toDouble(),
+      quincenaGoalAmount: (json['quincenaGoalAmount'] as num).toDouble(),
+    );
+  }
+}
+
+/// Desglose oficial de Planilla / Salario Neto en Nicaragua (Ley 822 DGI + INSS 7% + Aguinaldo).
+class NicaraguaPayrollBreakdown {
+  final double grossMonthly;
+  final double inssMonthly;
+  final double irMonthly;
+  final double netMonthly;
+  final double netQuincenal;
+  final double aguinaldoAccumulated;
+  final int workedMonths;
+
+  const NicaraguaPayrollBreakdown({
+    required this.grossMonthly,
+    required this.inssMonthly,
+    required this.irMonthly,
+    required this.netMonthly,
+    required this.netQuincenal,
+    required this.aguinaldoAccumulated,
+    required this.workedMonths,
+  });
+}
+
+class NicaraguaSalaryTaxCalculator {
+  /// Calcula INSS Laboral (7%), IR progresivo de la DGI Nicaragua y Aguinaldo proporcional.
+  static NicaraguaPayrollBreakdown calculate({
+    required double grossMonthlySalary,
+    int workedMonthsForAguinaldo = 12,
+  }) {
+    final gross = grossMonthlySalary.clamp(0.0, double.infinity);
+    // 1. INSS Laboral en Nicaragua: 7%
+    final inss = gross * 0.07;
+    final taxableMonthly = gross - inss;
+    final annualTaxable = taxableMonthly * 12.0;
+
+    // 2. Tabla Progresiva Oficial de IR Rentas del Trabajo (DGI Nicaragua - C$)
+    double annualIr = 0.0;
+    if (annualTaxable <= 100000.0) {
+      annualIr = 0.0;
+    } else if (annualTaxable <= 200000.0) {
+      annualIr = (annualTaxable - 100000.0) * 0.15;
+    } else if (annualTaxable <= 350000.0) {
+      annualIr = 15000.0 + (annualTaxable - 200000.0) * 0.20;
+    } else if (annualTaxable <= 500000.0) {
+      annualIr = 45000.0 + (annualTaxable - 350000.0) * 0.25;
+    } else {
+      annualIr = 82500.0 + (annualTaxable - 500000.0) * 0.30;
+    }
+
+    final irMonthly = annualIr / 12.0;
+    final netMonthly = (gross - inss - irMonthly).clamp(0.0, gross);
+    final netQuincenal = netMonthly / 2.0;
+
+    final clampedMonths = workedMonthsForAguinaldo.clamp(1, 12);
+    // En Nicaragua el Aguinaldo (13vo mes) es libre de deducciones de INSS e IR
+    final aguinaldo = (gross / 12.0) * clampedMonths;
+
+    return NicaraguaPayrollBreakdown(
+      grossMonthly: gross,
+      inssMonthly: inss,
+      irMonthly: irMonthly,
+      netMonthly: netMonthly,
+      netQuincenal: netQuincenal,
+      aguinaldoAccumulated: aguinaldo,
+      workedMonths: clampedMonths,
+    );
   }
 }

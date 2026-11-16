@@ -7,6 +7,7 @@ class PersistedAppData {
   final String activePeriodId;
   final List<MonthlyPeriodRecord> periods;
   final List<ActivityLogEntry> activityLogs;
+  final List<SavingsGoalItem> savingsGoals;
   final String gmailAddress;
   final String gmailAppPassword;
   final double usdToCordobaRate;
@@ -16,6 +17,7 @@ class PersistedAppData {
     required this.activePeriodId,
     required this.periods,
     required this.activityLogs,
+    required this.savingsGoals,
     required this.gmailAddress,
     required this.gmailAppPassword,
     required this.usdToCordobaRate,
@@ -27,12 +29,13 @@ class LocalStorageService {
   static const String _periodsKey = 'cofiper_periods_ni_v2';
   static const String _activePeriodKey = 'cofiper_active_period_ni_v2';
   static const String _logsKey = 'cofiper_activity_logs_ni_v2';
+  static const String _savingsGoalsKey = 'cofiper_savings_goals_ni_v1';
   static const String _gmailUserKey = 'cofiper_gmail_user_v1';
   static const String _gmailPassKey = 'cofiper_gmail_app_pass_v1';
   static const String _exchangeRateKey = 'cofiper_usd_rate_v1';
   static const String _bankSigsKey = 'cofiper_bank_sigs_v1';
 
-  /// Carga todos los periodos mensuales, credenciales de sincronización bancaria y bitácora.
+  /// Carga todos los periodos mensuales, alcancías de ahorro, credenciales de sincronización bancaria y bitácora.
   static Future<PersistedAppData?> loadData() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -60,6 +63,16 @@ class LocalStorageService {
             .toList();
       }
 
+      final goalsRaw = prefs.getString(_savingsGoalsKey);
+      List<SavingsGoalItem> goals = [];
+      if (goalsRaw != null && goalsRaw.isNotEmpty) {
+        final List<dynamic> decodedGoals =
+            jsonDecode(goalsRaw) as List<dynamic>;
+        goals = decodedGoals
+            .map((e) => SavingsGoalItem.fromJson(e as Map<String, dynamic>))
+            .toList();
+      }
+
       final gmailUser = prefs.getString(_gmailUserKey) ?? '';
       final gmailPass = prefs.getString(_gmailPassKey) ?? '';
       final usdRate = prefs.getDouble(_exchangeRateKey) ??
@@ -70,6 +83,7 @@ class LocalStorageService {
         activePeriodId: activeId,
         periods: periods,
         activityLogs: logs,
+        savingsGoals: goals,
         gmailAddress: gmailUser,
         gmailAppPassword: gmailPass,
         usdToCordobaRate: usdRate,
@@ -80,11 +94,12 @@ class LocalStorageService {
     }
   }
 
-  /// Guarda de forma persistente todos los periodos mensuales, el mes activo, credenciales Gmail y bitácora.
+  /// Guarda de forma persistente todos los periodos mensuales, metas de ahorro, el mes activo, credenciales Gmail y bitácora.
   static Future<void> saveData({
     required String activePeriodId,
     required List<MonthlyPeriodRecord> periods,
     required List<ActivityLogEntry> activityLogs,
+    required List<SavingsGoalItem> savingsGoals,
     required String gmailAddress,
     required String gmailAppPassword,
     required double usdToCordobaRate,
@@ -100,6 +115,10 @@ class LocalStorageService {
       await prefs.setString(
         _logsKey,
         jsonEncode(activityLogs.map((e) => e.toJson()).toList()),
+      );
+      await prefs.setString(
+        _savingsGoalsKey,
+        jsonEncode(savingsGoals.map((e) => e.toJson()).toList()),
       );
       await prefs.setString(_gmailUserKey, gmailAddress);
       await prefs.setString(_gmailPassKey, gmailAppPassword);

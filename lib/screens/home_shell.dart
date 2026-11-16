@@ -616,18 +616,100 @@ class _SimpleHomeTab extends StatelessWidget {
         ),
 
         const SizedBox(height: 10),
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: () => showBankGmailSyncModal(context, controller),
-            icon: const Icon(Icons.mark_email_read_rounded,
-                color: Color(0xFF4F46E5)),
-            label: const Text(
-              'Sincronizar Tarjetas desde Gmail (BAC • Banpro • LAFISE • Ficohsa)',
-              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () => showBankGmailSyncModal(context, controller),
+                icon: const Icon(Icons.mark_email_read_rounded,
+                    color: Color(0xFF4F46E5), size: 18),
+                label: const Text(
+                  'Sincronizar Gmail Bancos',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () =>
+                    showNicaraguaSalaryCalculatorModal(context, controller),
+                icon: const Icon(Icons.calculate_rounded,
+                    color: Color(0xFF0284C7), size: 18),
+                label: const Text(
+                  'INSS / IR / Aguinaldo 🇳🇮',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+          ],
+        ),
+
+        // 2.5 Semáforo de Fechas de Corte y Fecha Límite de Pago de Tarjetas / Préstamos
+        if (controller.expensesWithDateAlerts.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF59E0B).withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: const Color(0xFFF59E0B).withValues(alpha: 0.45),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.notifications_active_rounded,
+                        color: Color(0xFFD97706), size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Fechas de Corte y Límite de Pago (Día Hoy: ${DateTime.now().day})',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13.5,
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: onGoToExpenses,
+                      child: const Text('Ir a Pagar →',
+                          style: TextStyle(fontSize: 12)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                ...controller.expensesWithDateAlerts.map((exp) {
+                  final alertMsg =
+                      exp.buildPaymentAlertMessage(DateTime.now().day) ?? '';
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(exp.category.icon,
+                            size: 16, color: exp.category.color),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            '${exp.title}: $alertMsg',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+              ],
             ),
           ),
-        ),
+        ],
 
         const SizedBox(height: 18),
 
@@ -802,6 +884,145 @@ class _SimpleHomeTab extends StatelessWidget {
             ),
           ),
         ),
+
+        const SizedBox(height: 18),
+
+        // 5. Metas de Ahorro / "Alcancías por Quincena"
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Text(
+                '🎯 Mis Alcancías por Quincena',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+            ),
+            FilledButton.tonalIcon(
+              onPressed: () => showSavingsGoalModal(context, controller),
+              icon: const Icon(Icons.add_rounded, size: 18),
+              label: const Text('+ Nueva Meta'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Aparta un monto fijo por quincena para tu Fondo de Emergencia, Mercadería o metas personales:',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 10),
+        ...controller.savingsGoals.map((goal) {
+          final pct = (goal.progress * 100).round();
+          return Card(
+            margin: const EdgeInsets.only(bottom: 10),
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(
+                color: const Color(0xFF10B981).withValues(alpha: 0.4),
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const CircleAvatar(
+                        radius: 16,
+                        backgroundColor: Color(0xFFD1FAE5),
+                        foregroundColor: Color(0xFF047857),
+                        child: Icon(Icons.savings_rounded, size: 18),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              goal.title,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14.5,
+                              ),
+                            ),
+                            Text(
+                              goal.isCompleted
+                                  ? '🎉 ¡Meta alcanzada al 100%!'
+                                  : 'Aporte sugerido: ${formatCordobas(goal.quincenaGoalAmount, showDecimals: false)}/quincena • Faltan ~${goal.estimatedQuincenasLeft} quincena(s)',
+                              style: const TextStyle(
+                                  fontSize: 11.5, color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Eliminar meta',
+                        icon: const Icon(Icons.delete_outline_rounded,
+                            size: 18, color: Colors.redAccent),
+                        onPressed: () => controller.deleteSavingsGoal(goal.id),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: LinearProgressIndicator(
+                      value: goal.progress,
+                      minHeight: 8,
+                      backgroundColor: Colors.grey.withValues(alpha: 0.2),
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                          Color(0xFF10B981)),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Ahorrado: ${formatCordobas(goal.savedAmount, showDecimals: false)} de ${formatCordobas(goal.targetAmount, showDecimals: false)} ($pct%)',
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF047857),
+                        ),
+                      ),
+                      if (!goal.isCompleted)
+                        FilledButton.tonalIcon(
+                          style: FilledButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                          ),
+                          onPressed: () {
+                            controller.contributeToSavingsGoal(
+                              goal.id,
+                              goal.quincenaGoalAmount,
+                            );
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                behavior: SnackBarBehavior.floating,
+                                content: Text(
+                                  '¡Abonaste ${formatCordobas(goal.quincenaGoalAmount)} a "${goal.title}"!',
+                                ),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.add_circle_outline_rounded,
+                              size: 15),
+                          label: Text(
+                            '+ Abonar ${formatCordobas(goal.quincenaGoalAmount, showDecimals: false)}',
+                            style: const TextStyle(fontSize: 11.5),
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        }),
       ],
     );
   }
@@ -1438,7 +1659,111 @@ class _IncomesAndSalesTab extends StatelessWidget {
           ],
         ),
 
+        const SizedBox(height: 10),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: () =>
+                showNicaraguaSalaryCalculatorModal(context, controller),
+            icon: const Icon(Icons.calculate_rounded, color: Color(0xFF0284C7)),
+            label: const Text(
+              'Calculadora Oficial de Nicaragua: INSS (7%) • IR DGI • Aguinaldo 🇳🇮',
+              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ),
+
         const SizedBox(height: 18),
+
+        // Tarjeta de Ganancia Real en Ventas / Negocios Extras (Capital vs Ganancia Neta)
+        if (extraSales.isNotEmpty) ...[
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0F172A),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.inventory_2_rounded,
+                        color: Color(0xFF38BDF8), size: 18),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Control de Ganancia Real (Ventas y Negocios)',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13.5,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Total Vendido Bruto:',
+                      style: TextStyle(color: Colors.white70, fontSize: 12.5),
+                    ),
+                    Text(
+                      formatCordobas(controller.totalExtraGrossSales),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      '📦 Capital / Costo a Reponer:',
+                      style: TextStyle(color: Colors.white70, fontSize: 12.5),
+                    ),
+                    Text(
+                      formatCordobas(controller.totalExtraInvestmentCost),
+                      style: const TextStyle(
+                        color: Color(0xFFFDE68A),
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+                const Divider(color: Colors.white24, height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      '✨ GANANCIA NETA LIBRE (Para tus Gastos):',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12.5,
+                      ),
+                    ),
+                    Text(
+                      formatCordobas(controller.totalExtraNetProfit),
+                      style: const TextStyle(
+                        color: Color(0xFF6EE7B7),
+                        fontWeight: FontWeight.w900,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
 
         // Sección 1: Ventas, Negocios e Ingresos Extras en la Semana o Quincena
         Row(
@@ -1446,7 +1771,7 @@ class _IncomesAndSalesTab extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                'Ventas y Negocios Extras (${formatCordobas(summary.totalExtraIncome, showDecimals: false)})',
+                'Ventas y Negocios Extras (Ganancia Neta: ${formatCordobas(summary.totalExtraIncome, showDecimals: false)})',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
@@ -1456,7 +1781,7 @@ class _IncomesAndSalesTab extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          'Registra aquí cualquier venta, negocio o ingreso extra que hagas en la semana o durante la quincena:',
+          'Registra aquí cualquier venta o negocio extra. Si pones el costo del producto, COFIPER separa tu capital automáticamente:',
           style: Theme.of(context).textTheme.bodySmall,
         ),
         const SizedBox(height: 8),
@@ -1494,18 +1819,31 @@ class _IncomesAndSalesTab extends StatelessWidget {
               subtitle: Text(
                 [
                   inc.frequency.shortLabel,
+                  if (inc.investmentCost > 0)
+                    'Venta: ${formatCordobas(inc.amount, showDecimals: false)} • Costo: ${formatCordobas(inc.investmentCost, showDecimals: false)}',
                   if (inc.noteOrWeek != null) inc.noteOrWeek!,
                 ].join(' • '),
               ),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    formatCordobas(inc.monthlyTotal),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF0284C7),
-                    ),
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        formatCordobas(inc.monthlyTotal),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF0284C7),
+                        ),
+                      ),
+                      if (inc.investmentCost > 0)
+                        const Text(
+                          'Ganancia Neta',
+                          style: TextStyle(fontSize: 10, color: Colors.grey),
+                        ),
+                    ],
                   ),
                   IconButton(
                     icon: const Icon(Icons.delete_outline_rounded,
@@ -1879,6 +2217,219 @@ class _SmartAdvisorAndHistoryTabState
                     ],
                   ),
                 ),
+              ],
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 18),
+
+        // 3.5 Gráfico Visual de Distribución por Categorías
+        Card(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+            side: BorderSide(
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.pie_chart_rounded,
+                        color: Color(0xFF0EA5E9)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '📊 Gráfico de Gastos por Categoría',
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                if (summary.totalExpenses > 0) ...[
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: SizedBox(
+                      height: 14,
+                      child: Row(
+                        children: ExpenseCategory.values.map((cat) {
+                          final catTotal = widget.controller.expenses
+                              .where((e) => e.category == cat)
+                              .fold(0.0, (s, e) => s + e.totalAmount);
+                          if (catTotal <= 0) return const SizedBox.shrink();
+                          final flexVal =
+                              ((catTotal / summary.totalExpenses) * 1000)
+                                  .round()
+                                  .clamp(1, 1000);
+                          return Expanded(
+                            flex: flexVal,
+                            child: Container(color: cat.color),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ...ExpenseCategory.values.map((cat) {
+                    final catTotal = widget.controller.expenses
+                        .where((e) => e.category == cat)
+                        .fold(0.0, (s, e) => s + e.totalAmount);
+                    if (catTotal <= 0) return const SizedBox.shrink();
+                    final pct = (catTotal / summary.totalExpenses) * 100.0;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 12,
+                            height: 12,
+                            decoration: BoxDecoration(
+                              color: cat.color,
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              cat.label,
+                              style: const TextStyle(fontSize: 12.5),
+                            ),
+                          ),
+                          Text(
+                            '${formatCordobas(catTotal, showDecimals: false)} (${pct.toStringAsFixed(0)}%)',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ] else
+                  const Text('No hay gastos registrados en este mes.'),
+              ],
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // 3.8 Comparativa Histórica entre Meses Guardados
+        Card(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+            side: BorderSide(
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.bar_chart_rounded,
+                        color: Color(0xFF059669)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '📅 Historial Comparativo entre Meses',
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                ...widget.controller.periods.map((period) {
+                  final pSum = RecalculationEngine.buildSummary(
+                    incomes: period.incomes,
+                    expenses: period.expenses,
+                  );
+                  final ratio = pSum.totalIncome > 0
+                      ? (pSum.totalExpenses / pSum.totalIncome).clamp(0.0, 1.0)
+                      : 0.0;
+                  final isCurrent =
+                      period.id == widget.controller.activePeriodId;
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: isCurrent
+                          ? const Color(0xFF10B981).withValues(alpha: 0.08)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isCurrent
+                            ? const Color(0xFF10B981).withValues(alpha: 0.4)
+                            : Theme.of(context).colorScheme.outlineVariant,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              period.monthLabel +
+                                  (isCurrent ? ' (Mes Actual)' : ''),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13.5,
+                              ),
+                            ),
+                            Text(
+                              'Libre: ${formatCordobas(pSum.totalFreeCash, showDecimals: false)}',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12.5,
+                                color: pSum.totalFreeCash < 0
+                                    ? Colors.redAccent
+                                    : const Color(0xFF059669),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: LinearProgressIndicator(
+                            value: ratio,
+                            minHeight: 7,
+                            backgroundColor:
+                                Colors.grey.withValues(alpha: 0.2),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              ratio > 0.85
+                                  ? Colors.redAccent
+                                  : const Color(0xFF0EA5E9),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Ingresos: ${formatCordobas(pSum.totalIncome, showDecimals: false)} • Gastos: ${formatCordobas(pSum.totalExpenses, showDecimals: false)} (${pSum.spentPercentage.toStringAsFixed(0)}%)',
+                          style: const TextStyle(
+                              fontSize: 11.5, color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
               ],
             ),
           ),
