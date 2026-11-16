@@ -73,27 +73,27 @@ enum IncomeFrequency {
 extension IncomeFrequencyX on IncomeFrequency {
   String get label {
     switch (this) {
-      case IncomeFrequency.biweekly:
-        return 'Quincenal Fijo (Recibo este monto en cada quincena)';
-      case IncomeFrequency.monthlySplit:
-        return 'Mensual (Dividir 50% en 1ra Quincena y 50% en 2da Quincena)';
       case IncomeFrequency.onlyQ1:
-        return 'Trayecto 1ra Quincena (Días 1 al 15 / Ventas o Extra)';
+        return 'Para 1ra Quincena (Pago de Fin de Mes o Ventas → Cubre gastos del 1 al 15)';
       case IncomeFrequency.onlyQ2:
-        return 'Trayecto 2da Quincena (Días 16 al 30 / Ventas o Extra)';
+        return 'Para 2da Quincena (Pago del Día 15 o Ventas → Cubre gastos del 16 al 30)';
+      case IncomeFrequency.monthlySplit:
+        return 'Dividir mitad y mitad (50% en 1ra Quincena y 50% en 2da Quincena)';
+      case IncomeFrequency.biweekly:
+        return 'Repetir automáticamente este mismo monto en las 2 quincenas';
     }
   }
 
   String get shortLabel {
     switch (this) {
-      case IncomeFrequency.biweekly:
-        return 'Cada Quincena';
-      case IncomeFrequency.monthlySplit:
-        return 'Mensual (50/50)';
       case IncomeFrequency.onlyQ1:
-        return '1ra Quincena (Días 1-15)';
+        return '1ra Quincena (Pago Fin de Mes → Gastos 1-15)';
       case IncomeFrequency.onlyQ2:
-        return '2da Quincena (Días 16-30)';
+        return '2da Quincena (Pago Día 15 → Gastos 16-30)';
+      case IncomeFrequency.monthlySplit:
+        return 'Dividido (50/50)';
+      case IncomeFrequency.biweekly:
+        return 'Ambas Quincenas';
     }
   }
 }
@@ -391,6 +391,12 @@ class ExpenseItem {
   /// Día de corte (opcional, para tarjetas de crédito).
   final int? cutoffDay;
 
+  /// Fecha exacta de límite de pago seleccionada desde el calendario.
+  final DateTime? dueDate;
+
+  /// Fecha exacta de corte seleccionada desde el calendario.
+  final DateTime? cutoffDate;
+
   final String? notes;
 
   const ExpenseItem({
@@ -405,8 +411,28 @@ class ExpenseItem {
     this.q2Collected = false,
     this.dueDay,
     this.cutoffDay,
+    this.dueDate,
+    this.cutoffDate,
     this.notes,
   });
+
+  static String formatCalendarDate(DateTime d) {
+    final day = d.day.toString().padLeft(2, '0');
+    final month = d.month.toString().padLeft(2, '0');
+    return '$day/$month/${d.year}';
+  }
+
+  String? get formattedCutoffDate {
+    if (cutoffDate != null) return formatCalendarDate(cutoffDate!);
+    if (cutoffDay != null) return 'Día $cutoffDay';
+    return null;
+  }
+
+  String? get formattedDueDate {
+    if (dueDate != null) return formatCalendarDate(dueDate!);
+    if (dueDay != null) return 'Día $dueDay';
+    return null;
+  }
 
   bool get collectsFromTwoQuincenas =>
       splitMode == SplitMode.twoQuincenasAuto ||
@@ -426,36 +452,60 @@ class ExpenseItem {
       (q2Allocation <= 0.01 || q2Collected);
 
   /// Días restantes para la fecha límite de pago en el mes actual (negativo si ya pasó).
-  int? daysUntilDue(int currentDay) =>
-      dueDay != null ? (dueDay! - currentDay) : null;
+  int? daysUntilDue(int currentDay) {
+    if (dueDate != null) {
+      final today = DateTime(
+          DateTime.now().year, DateTime.now().month, DateTime.now().day);
+      final target = DateTime(dueDate!.year, dueDate!.month, dueDate!.day);
+      return target.difference(today).inDays;
+    }
+    return dueDay != null ? (dueDay! - currentDay) : null;
+  }
 
   /// Días restantes para la fecha de corte de la tarjeta.
-  int? daysUntilCutoff(int currentDay) =>
-      cutoffDay != null ? (cutoffDay! - currentDay) : null;
+  int? daysUntilCutoff(int currentDay) {
+    if (cutoffDate != null) {
+      final today = DateTime(
+          DateTime.now().year, DateTime.now().month, DateTime.now().day);
+      final target =
+          DateTime(cutoffDate!.year, cutoffDate!.month, cutoffDate!.day);
+      return target.difference(today).inDays;
+    }
+    return cutoffDay != null ? (cutoffDay! - currentDay) : null;
+  }
 
   /// Devuelve un aviso claro de corte o fecha límite de pago si el gasto aún no está pagado al 100%.
   String? buildPaymentAlertMessage(int currentDay) {
     if (isFullyPaid) return null;
-    if (dueDay == null && cutoffDay == null) return null;
+    if (dueDay == null &&
+        cutoffDay == null &&
+        dueDate == null &&
+        cutoffDate == null) {
+      return null;
+    }
 
-    if (dueDay != null) {
-      final diffDue = dueDay! - currentDay;
+    final diffDue = daysUntilDue(currentDay);
+    final dueLabel = formattedDueDate ?? '';
+    final cutLabel = formattedCutoffDate;
+
+    if (diffDue != null) {
       if (diffDue < 0) {
-        return '🚨 ¡Vencida! Fecha límite fue el día $dueDay (Pendiente: ${formatCordobas(remainingToCollect)})';
+        return '🚨 ¡Vencida! Fecha límite fue $dueLabel (Pendiente: ${formatCordobas(remainingToCollect)})';
       } else if (diffDue == 0) {
-        return '🚨 ¡Vence HOY (Día $dueDay)! Pagar ${formatCordobas(remainingToCollect)} para evitar mora';
+        return '🚨 ¡Vence HOY ($dueLabel)! Pagar ${formatCordobas(remainingToCollect)} para evitar mora';
       } else if (diffDue <= 5) {
-        return '⚠️ Faltan $diffDue día(s) para fecha límite de pago (Día $dueDay • Pendiente: ${formatCordobas(remainingToCollect)})';
+        return '⚠️ Faltan $diffDue día(s) para fecha límite ($dueLabel • Pendiente: ${formatCordobas(remainingToCollect)})';
       } else {
-        return '📅 Fecha de pago: Día $dueDay (en $diffDue días)${cutoffDay != null ? " • Corte: Día $cutoffDay" : ""}';
+        return '📅 Pago límite: $dueLabel (en $diffDue días)${cutLabel != null ? " • Corte: $cutLabel" : ""}';
       }
     }
 
-    if (cutoffDay != null) {
-      final diffCut = cutoffDay! - currentDay;
-      if (diffCut >= 0 && diffCut <= 4) {
-        return '✂️ Tu tarjeta corta en $diffCut día(s) (Día $cutoffDay)';
+    final diffCut = daysUntilCutoff(currentDay);
+    if (diffCut != null && cutLabel != null) {
+      if (diffCut >= 0 && diffCut <= 5) {
+        return '✂️ Tu tarjeta corta en $diffCut día(s) ($cutLabel)';
       }
+      return '✂️ Fecha de corte: $cutLabel';
     }
     return null;
   }
@@ -472,6 +522,8 @@ class ExpenseItem {
     bool? q2Collected,
     int? dueDay,
     int? cutoffDay,
+    DateTime? dueDate,
+    DateTime? cutoffDate,
     String? notes,
   }) {
     return ExpenseItem(
@@ -486,6 +538,8 @@ class ExpenseItem {
       q2Collected: q2Collected ?? this.q2Collected,
       dueDay: dueDay ?? this.dueDay,
       cutoffDay: cutoffDay ?? this.cutoffDay,
+      dueDate: dueDate ?? this.dueDate,
+      cutoffDate: cutoffDate ?? this.cutoffDate,
       notes: notes ?? this.notes,
     );
   }
@@ -502,10 +556,16 @@ class ExpenseItem {
         'q2Collected': q2Collected,
         'dueDay': dueDay,
         'cutoffDay': cutoffDay,
+        'dueDate': dueDate?.toIso8601String(),
+        'cutoffDate': cutoffDate?.toIso8601String(),
         'notes': notes,
       };
 
   factory ExpenseItem.fromJson(Map<String, dynamic> json) {
+    final parsedDueDate =
+        DateTime.tryParse(json['dueDate'] as String? ?? '');
+    final parsedCutoffDate =
+        DateTime.tryParse(json['cutoffDate'] as String? ?? '');
     return ExpenseItem(
       id: json['id'] as String,
       title: json['title'] as String,
@@ -522,8 +582,10 @@ class ExpenseItem {
       q2Allocation: (json['q2Allocation'] as num).toDouble(),
       q1Collected: json['q1Collected'] as bool? ?? false,
       q2Collected: json['q2Collected'] as bool? ?? false,
-      dueDay: json['dueDay'] as int?,
-      cutoffDay: json['cutoffDay'] as int?,
+      dueDay: (json['dueDay'] as int?) ?? parsedDueDate?.day,
+      cutoffDay: (json['cutoffDay'] as int?) ?? parsedCutoffDate?.day,
+      dueDate: parsedDueDate,
+      cutoffDate: parsedCutoffDate,
       notes: json['notes'] as String?,
     );
   }

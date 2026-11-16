@@ -25,10 +25,8 @@ Future<void> showIncomeFormModal(
           ? IncomeOrigin.extraSaleOrBusiness
           : IncomeOrigin.fixedSalary);
 
-  IncomeFrequency selectedFrequency = existing?.frequency ??
-      (selectedOrigin == IncomeOrigin.extraSaleOrBusiness
-          ? IncomeFrequency.onlyQ1
-          : IncomeFrequency.biweekly);
+  IncomeFrequency selectedFrequency =
+      existing?.frequency ?? IncomeFrequency.onlyQ1;
 
   await showModalBottomSheet<void>(
     context: context,
@@ -114,10 +112,7 @@ Future<void> showIncomeFormModal(
                       setModalState(() {
                         selectedOrigin = next;
                         if (existing == null) {
-                          selectedFrequency =
-                              next == IncomeOrigin.extraSaleOrBusiness
-                                  ? IncomeFrequency.onlyQ1
-                                  : IncomeFrequency.biweekly;
+                          selectedFrequency = IncomeFrequency.onlyQ1;
                         }
                       });
                     },
@@ -203,7 +198,7 @@ Future<void> showIncomeFormModal(
                   Text(
                     isExtra
                         ? '¿En qué quincena entró este dinero?'
-                        : '¿Cada cuánto recibes este ingreso?',
+                        : '¿Qué quincena de gastos vas a cubrir con este pago?',
                     style: Theme.of(ctx).textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.w600,
                         ),
@@ -223,7 +218,12 @@ Future<void> showIncomeFormModal(
                                   IncomeFrequency.onlyQ2,
                                   IncomeFrequency.monthlySplit,
                                 ]
-                              : IncomeFrequency.values)
+                              : [
+                                  IncomeFrequency.onlyQ1,
+                                  IncomeFrequency.onlyQ2,
+                                  IncomeFrequency.monthlySplit,
+                                  IncomeFrequency.biweekly,
+                                ])
                           .map((freq) {
                         return RadioListTile<IncomeFrequency>(
                           contentPadding: EdgeInsets.zero,
@@ -340,13 +340,17 @@ Future<void> showExpenseFormModal(
   final amountCtrl = TextEditingController(
     text: existing != null ? existing.totalAmount.toStringAsFixed(2) : '',
   );
-  final dueDayCtrl = TextEditingController(
-    text: existing?.dueDay?.toString() ?? '',
-  );
-  final cutoffDayCtrl = TextEditingController(
-    text: existing?.cutoffDay?.toString() ?? '',
-  );
   final notesCtrl = TextEditingController(text: existing?.notes ?? '');
+
+  final now = DateTime.now();
+  DateTime? selectedCutoffDate = existing?.cutoffDate ??
+      (existing?.cutoffDay != null
+          ? DateTime(now.year, now.month, existing!.cutoffDay!.clamp(1, 28))
+          : null);
+  DateTime? selectedDueDate = existing?.dueDate ??
+      (existing?.dueDay != null
+          ? DateTime(now.year, now.month, existing!.dueDay!.clamp(1, 28))
+          : null);
 
   ExpenseCategory selectedCategory =
       existing?.category ?? ExpenseCategory.creditCard;
@@ -495,44 +499,71 @@ Future<void> showExpenseFormModal(
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      if (selectedCategory == ExpenseCategory.creditCard) ...[
-                        Expanded(
-                          child: TextField(
-                            controller: cutoffDayCtrl,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(
-                              labelText: 'Día de Corte (1-31)',
-                              prefixIcon: Icon(Icons.calendar_today_rounded),
-                              border: OutlineInputBorder(),
-                            ),
-                          ),
+                  Text(
+                    'Fechas de Calendario (Toca para elegir en el calendario):',
+                    style: Theme.of(ctx).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
                         ),
-                        const SizedBox(width: 12),
-                      ],
-                      Expanded(
-                        child: TextField(
-                          controller: dueDayCtrl,
-                          keyboardType: TextInputType.number,
-                          decoration: InputDecoration(
-                            labelText: isDebtOrCard
-                                ? 'Fecha Límite Pago (1-31)'
-                                : 'Día de Pago (Opcional)',
-                            prefixIcon:
-                                const Icon(Icons.event_available_rounded),
-                            border: const OutlineInputBorder(),
-                          ),
-                        ),
-                      ),
-                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  if (selectedCategory == ExpenseCategory.creditCard) ...[
+                    _CalendarDateSelectorTile(
+                      label: 'Fecha de Corte de la Tarjeta',
+                      selectedDate: selectedCutoffDate,
+                      icon: Icons.content_cut_rounded,
+                      accentColor: const Color(0xFF0284C7),
+                      onPickDate: () async {
+                        final picked = await showDatePicker(
+                          context: ctx,
+                          initialDate: selectedCutoffDate ?? DateTime.now(),
+                          firstDate: DateTime(DateTime.now().year - 1, 1, 1),
+                          lastDate: DateTime(DateTime.now().year + 5, 12, 31),
+                          helpText: 'SELECCIONA LA FECHA DE CORTE',
+                          cancelText: 'Cancelar',
+                          confirmText: 'Aceptar',
+                        );
+                        if (picked != null) {
+                          setModalState(() => selectedCutoffDate = picked);
+                        }
+                      },
+                      onClear: selectedCutoffDate == null
+                          ? null
+                          : () =>
+                              setModalState(() => selectedCutoffDate = null),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                  _CalendarDateSelectorTile(
+                    label: isDebtOrCard
+                        ? 'Fecha Límite de Pago (Sin Intereses / Mora)'
+                        : 'Fecha de Pago en Calendario (Opcional)',
+                    selectedDate: selectedDueDate,
+                    icon: Icons.event_available_rounded,
+                    accentColor: const Color(0xFF059669),
+                    onPickDate: () async {
+                      final picked = await showDatePicker(
+                        context: ctx,
+                        initialDate: selectedDueDate ?? DateTime.now(),
+                        firstDate: DateTime(DateTime.now().year - 1, 1, 1),
+                        lastDate: DateTime(DateTime.now().year + 5, 12, 31),
+                        helpText: 'SELECCIONA LA FECHA LÍMITE DE PAGO',
+                        cancelText: 'Cancelar',
+                        confirmText: 'Aceptar',
+                      );
+                      if (picked != null) {
+                        setModalState(() => selectedDueDate = picked);
+                      }
+                    },
+                    onClear: selectedDueDate == null
+                        ? null
+                        : () => setModalState(() => selectedDueDate = null),
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: notesCtrl,
                     decoration: const InputDecoration(
                       labelText: 'Nota o recordatorio (Opcional)',
-                      hintText: 'Ej. Cuota 4 de 12, pagar antes del 28...',
+                      hintText: 'Ej. Cuota 4 de 12, pagar de contado...',
                       prefixIcon: Icon(Icons.notes_rounded),
                       border: OutlineInputBorder(),
                     ),
@@ -559,9 +590,6 @@ Future<void> showExpenseFormModal(
                           );
                           return;
                         }
-                        final dueDay = int.tryParse(dueDayCtrl.text.trim());
-                        final cutoffDay =
-                            int.tryParse(cutoffDayCtrl.text.trim());
                         final notes = notesCtrl.text.trim().isEmpty
                             ? null
                             : notesCtrl.text.trim();
@@ -572,8 +600,10 @@ Future<void> showExpenseFormModal(
                             category: selectedCategory,
                             totalAmount: amount,
                             splitMode: selectedSplitMode,
-                            dueDay: dueDay,
-                            cutoffDay: cutoffDay,
+                            dueDay: selectedDueDate?.day,
+                            cutoffDay: selectedCutoffDate?.day,
+                            dueDate: selectedDueDate,
+                            cutoffDate: selectedCutoffDate,
                             notes: notes,
                           );
                         } else {
@@ -583,8 +613,10 @@ Future<void> showExpenseFormModal(
                               category: selectedCategory,
                               totalAmount: amount,
                               splitMode: selectedSplitMode,
-                              dueDay: dueDay,
-                              cutoffDay: cutoffDay,
+                              dueDay: selectedDueDate?.day,
+                              cutoffDay: selectedCutoffDate?.day,
+                              dueDate: selectedDueDate,
+                              cutoffDate: selectedCutoffDate,
                               notes: notes,
                             ),
                           );
@@ -944,54 +976,84 @@ Future<void> showNicaraguaSalaryCalculatorModal(
                     ),
                   ),
                   const SizedBox(height: 14),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF059669),
-                        padding: const EdgeInsets.symmetric(vertical: 13),
-                      ),
-                      icon: const Icon(Icons.check_circle_outline_rounded),
-                      label: Text(
-                        'Usar ${formatCordobas(breakdown.netQuincenal)} como mi Sueldo Quincenal',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      onPressed: breakdown.netQuincenal <= 0
-                          ? null
-                          : () {
-                              final existingFixed =
-                                  controller.fixedIncomes.firstOrNull;
-                              if (existingFixed != null) {
-                                controller.updateIncome(
-                                  existingFixed.copyWith(
-                                    title: 'Salario Quincenal Neto (INSS/IR)',
+                  Row(
+                    children: [
+                      Expanded(
+                        child: FilledButton.icon(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFF059669),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                          icon: const Icon(Icons.looks_one_rounded, size: 18),
+                          label: const Text(
+                            'Meter en 1ra Quincena\n(Pago Fin de Mes)',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                                fontSize: 11.5, fontWeight: FontWeight.bold),
+                          ),
+                          onPressed: breakdown.netQuincenal <= 0
+                              ? null
+                              : () {
+                                  controller.addIncome(
+                                    title:
+                                        'Pago Fin de Mes Neto (Para Gastos 1-15)',
                                     amount: (breakdown.netQuincenal * 100)
                                             .roundToDouble() /
                                         100.0,
-                                    frequency: IncomeFrequency.biweekly,
-                                  ),
-                                );
-                              } else {
-                                controller.addIncome(
-                                  title: 'Salario Quincenal Neto (INSS/IR)',
-                                  amount: (breakdown.netQuincenal * 100)
-                                          .roundToDouble() /
-                                      100.0,
-                                  frequency: IncomeFrequency.biweekly,
-                                  origin: IncomeOrigin.fixedSalary,
-                                );
-                              }
-                              Navigator.pop(ctx);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  behavior: SnackBarBehavior.floating,
-                                  content: Text(
-                                    '¡Listo! Tu sueldo quincenal neto quedó en ${formatCordobas(breakdown.netQuincenal)} por quincena.',
-                                  ),
-                                ),
-                              );
-                            },
-                    ),
+                                    frequency: IncomeFrequency.onlyQ1,
+                                    origin: IncomeOrigin.fixedSalary,
+                                  );
+                                  Navigator.pop(ctx);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      behavior: SnackBarBehavior.floating,
+                                      content: Text(
+                                        'Se registró ${formatCordobas(breakdown.netQuincenal)} en tu 1ra Quincena (Gastos del 1 al 15).',
+                                      ),
+                                    ),
+                                  );
+                                },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: FilledButton.icon(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFF7C3AED),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                          icon: const Icon(Icons.looks_two_rounded, size: 18),
+                          label: const Text(
+                            'Meter en 2da Quincena\n(Pago del Día 15)',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                                fontSize: 11.5, fontWeight: FontWeight.bold),
+                          ),
+                          onPressed: breakdown.netQuincenal <= 0
+                              ? null
+                              : () {
+                                  controller.addIncome(
+                                    title:
+                                        'Pago Día 15 Neto (Para Gastos 16-30)',
+                                    amount: (breakdown.netQuincenal * 100)
+                                            .roundToDouble() /
+                                        100.0,
+                                    frequency: IncomeFrequency.onlyQ2,
+                                    origin: IncomeOrigin.fixedSalary,
+                                  );
+                                  Navigator.pop(ctx);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      behavior: SnackBarBehavior.floating,
+                                      content: Text(
+                                        'Se registró ${formatCordobas(breakdown.netQuincenal)} en tu 2da Quincena (Gastos del 16 al 30).',
+                                      ),
+                                    ),
+                                  );
+                                },
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -1001,6 +1063,91 @@ Future<void> showNicaraguaSalaryCalculatorModal(
       );
     },
   );
+}
+
+class _CalendarDateSelectorTile extends StatelessWidget {
+  final String label;
+  final DateTime? selectedDate;
+  final IconData icon;
+  final Color accentColor;
+  final VoidCallback onPickDate;
+  final VoidCallback? onClear;
+
+  const _CalendarDateSelectorTile({
+    required this.label,
+    required this.selectedDate,
+    required this.icon,
+    required this.accentColor,
+    required this.onPickDate,
+    this.onClear,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hasDate = selectedDate != null;
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: onPickDate,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: hasDate
+              ? accentColor.withValues(alpha: 0.1)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: hasDate
+                ? accentColor
+                : Theme.of(context).colorScheme.outlineVariant,
+            width: hasDate ? 1.5 : 1.0,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.calendar_month_rounded,
+              color: hasDate ? accentColor : Colors.grey,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    hasDate
+                        ? '📅 Seleccionada: ${ExpenseItem.formatCalendarDate(selectedDate!)} (Toca para cambiar)'
+                        : 'Toca aquí para abrir el calendario y elegir fecha',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight:
+                          hasDate ? FontWeight.bold : FontWeight.normal,
+                      color: hasDate ? accentColor : Colors.grey,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (onClear != null)
+              IconButton(
+                tooltip: 'Quitar fecha',
+                onPressed: onClear,
+                icon: const Icon(Icons.clear_rounded, size: 18),
+              )
+            else
+              Icon(Icons.touch_app_rounded, size: 18, color: accentColor),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _PayrollRow extends StatelessWidget {

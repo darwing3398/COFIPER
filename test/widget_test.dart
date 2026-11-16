@@ -89,11 +89,10 @@ void main() {
     expect(banproUsdTx.wasInDollars, isTrue);
     expect(banproUsdTx.amountInCordobas, 732.49);
 
-    // Al procesar en FinanceController debe sumarse a la tarjeta BAC (*4512) y recalcular las 2 quincenas
+    // Al procesar en FinanceController (que inicia en limpio) debe crear/sumar la tarjeta BAC (*4512)
     final controller = FinanceController();
-    final initialBac = controller.expenses
-        .firstWhere((e) => e.title.contains('BAC'))
-        .totalAmount;
+    expect(controller.incomes, isEmpty);
+    expect(controller.expenses, isEmpty);
 
     controller.processBankAlertText(
       'BAC Credomatic informa: Compra aprobada en LA COLONIA por C\$ 1,200.00 con su tarjeta *4512.',
@@ -102,7 +101,7 @@ void main() {
     final updatedBac = controller.expenses
         .firstWhere((e) => e.title.contains('BAC'))
         .totalAmount;
-    expect(updatedBac, initialBac + 1200.0);
+    expect(updatedBac, 1200.0);
   });
 
   testWidgets('COFIPER permite crear PIN propio de 4 digitos y correo al iniciar por primera vez', (WidgetTester tester) async {
@@ -122,6 +121,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('COFIPER · Control en Córdobas (C\$)'), findsOneWidget);
-    expect(find.textContaining('Sincronizar Tarjetas desde Gmail'), findsOneWidget);
+    expect(find.textContaining('Sincronizar Gmail Bancos'), findsOneWidget);
   });
 }

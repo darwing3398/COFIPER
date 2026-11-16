@@ -21,7 +21,7 @@ class FinanceController extends ChangeNotifier {
   String? _lastBankSyncMessage;
 
   FinanceController() {
-    _initializeDefaultDemo();
+    _initializeCleanDefault();
     _loadPersistedData();
   }
 
@@ -93,19 +93,50 @@ class FinanceController extends ChangeNotifier {
         expenses: expenses,
       );
 
+  static const Set<String> _legacyDemoIds = {
+    'inc_1',
+    'inc_2',
+    'exp_tc_1',
+    'exp_loan_1',
+    'exp_rent',
+    'exp_util_1',
+    'exp_util_2',
+    'exp_food',
+    'exp_ant',
+  };
+
   Future<void> _loadPersistedData() async {
     final persisted = await LocalStorageService.loadData();
     if (persisted != null && persisted.periods.isNotEmpty) {
-      _periods = persisted.periods;
+      // Limpiar automáticamente los datos de demostración pre-cargados antiguos,
+      // dejando únicamente los ingresos y gastos reales que el usuario haya registrado.
+      _periods = persisted.periods.map((p) {
+        final realIncomes = p.incomes
+            .where((inc) => !_legacyDemoIds.contains(inc.id))
+            .toList();
+        final realExpenses = p.expenses
+            .where((exp) => !_legacyDemoIds.contains(exp.id))
+            .toList();
+        final recalc = RecalculationEngine.recalculateExpenses(
+          incomes: realIncomes,
+          expenses: realExpenses,
+          strategy: p.strategy,
+          respectCollectedQ1: true,
+        );
+        return p.copyWith(incomes: realIncomes, expenses: recalc);
+      }).toList();
       _activePeriodId = persisted.activePeriodId;
-      _activityLogs = persisted.activityLogs;
-      if (persisted.savingsGoals.isNotEmpty) {
-        _savingsGoals = persisted.savingsGoals;
-      }
+      _activityLogs = persisted.activityLogs
+          .where((l) => !l.id.startsWith('log_init_'))
+          .toList();
+      _savingsGoals = persisted.savingsGoals
+          .where((g) => g.id != 'goal_emergency' && g.id != 'goal_inventory')
+          .toList();
       _gmailAddress = persisted.gmailAddress;
       _gmailAppPassword = persisted.gmailAppPassword;
       _usdToCordobaRate = persisted.usdToCordobaRate;
       _processedBankSignatures = persisted.processedBankSignatures;
+      await _persistState();
     } else {
       await _persistState();
     }
@@ -514,6 +545,8 @@ class FinanceController extends ChangeNotifier {
     double? customQ1Amount,
     int? dueDay,
     int? cutoffDay,
+    DateTime? dueDate,
+    DateTime? cutoffDate,
     String? notes,
   }) {
     double q1 = 0.0;
@@ -539,8 +572,10 @@ class FinanceController extends ChangeNotifier {
       splitMode: splitMode,
       q1Allocation: q1,
       q2Allocation: q2,
-      dueDay: dueDay,
-      cutoffDay: cutoffDay,
+      dueDay: dueDay ?? dueDate?.day,
+      cutoffDay: cutoffDay ?? cutoffDate?.day,
+      dueDate: dueDate,
+      cutoffDate: cutoffDate,
       notes: notes,
     );
 
@@ -762,6 +797,21 @@ class FinanceController extends ChangeNotifier {
     _persistState();
     notifyListeners();
     refreshOnlineAdvice();
+  }
+
+  void _initializeCleanDefault() {
+    final cleanPeriod = MonthlyPeriodRecord(
+      id: 'period_nov_2026',
+      monthLabel: 'Noviembre 2026',
+      strategy: AllocationStrategy.liquidityBalance,
+      incomes: const [],
+      expenses: const [],
+      createdAt: DateTime.now(),
+    );
+    _periods = [cleanPeriod];
+    _activePeriodId = cleanPeriod.id;
+    _savingsGoals = [];
+    _activityLogs = [];
   }
 
   void _initializeDefaultDemo() {

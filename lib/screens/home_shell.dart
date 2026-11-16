@@ -715,40 +715,44 @@ class _SimpleHomeTab extends StatelessWidget {
 
         // 3. Tus 2 Quincenas Explicadas Claramente
         Text(
-          'Cómo quedan tus 2 Quincenas del Mes',
+          'Cómo quedan tus 2 Quincenas (Solo con los datos que tú ingresas)',
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
         ),
         const SizedBox(height: 4),
         Text(
-          'Aquí ves cuánto dinero entra en cada quincena, cuánto debes apartar para tus gastos/tarjetas y cuánto te queda libre:',
+          '• 1ra Quincena (Días 1 al 15): Gastos que pagas con tu pago de Fin de Mes.\n'
+          '• 2da Quincena (Días 16 al 30): Gastos que pagas con tu pago del Día 15.',
           style: Theme.of(context).textTheme.bodySmall,
         ),
         const SizedBox(height: 10),
 
         _ClearQuincenaCard(
-          quincenaTitle: 'Primera Quincena (Días 1 al 15)',
+          quincenaTitle:
+              '1ra Quincena (Gastos del 1 al 15 · Con Pago Fin de Mes)',
           incomeAmount: summary.q1Income,
           extraSalesAmount: summary.q1ExtraIncome,
           expensesAmount: summary.q1Expenses,
           freeAmount: summary.q1FreeCash,
           adviceFooter: summary.q1VaultTarget > 0
-              ? '📌 Importante: De esta 1ra Quincena debes guardar ${formatCordobas(summary.q1VaultTarget)} para juntarlo con la 2da Quincena y pagar tus tarjetas/préstamos.'
-              : 'Todos los pagos de esta quincena están cubiertos.',
+              ? '📌 De tu pago de Fin de Mes (1ra Quincena) guarda ${formatCordobas(summary.q1VaultTarget)} para juntarlo con la 2da Quincena y pagar tus tarjetas/préstamos.'
+              : 'Aquí solo aparece el dinero y gastos que hayas registrado para los días 1 al 15.',
           accentColor: const Color(0xFF2563EB),
         ),
 
         const SizedBox(height: 12),
 
         _ClearQuincenaCard(
-          quincenaTitle: 'Segunda Quincena (Días 16 al 30)',
+          quincenaTitle:
+              '2da Quincena (Gastos del 16 al 30 · Con Pago del Día 15)',
           incomeAmount: summary.q2Income,
           extraSalesAmount: summary.q2ExtraIncome,
           expensesAmount: summary.q2Expenses,
           freeAmount: summary.q2FreeCash,
-          adviceFooter:
-              '📌 Une lo que guardaste en la 1ra Quincena + los ${formatCordobas(summary.q2Expenses)} de esta 2da Quincena para cancelar tus tarjetas y préstamos.',
+          adviceFooter: summary.q2Income <= 0
+              ? '📌 Aún no has ingresado tu pago del Día 15 (2da Quincena). Cuando te paguen el 15, regístralo en "+ Sueldo" eligiendo 2da Quincena.'
+              : '📌 Une lo que guardaste en la 1ra Quincena + los ${formatCordobas(summary.q2Expenses)} de este pago del Día 15 para cancelar tus tarjetas y préstamos.',
           accentColor: const Color(0xFF7C3AED),
         ),
 
@@ -1387,10 +1391,10 @@ class _InteractiveSplitExpenseCard extends StatelessWidget {
                       Text(
                         [
                           expense.category.label,
-                          if (expense.cutoffDay != null)
-                            'Corte: Día ${expense.cutoffDay}',
-                          if (expense.dueDay != null)
-                            'Pago: Día ${expense.dueDay}',
+                          if (expense.formattedCutoffDate != null)
+                            'Corte: ${expense.formattedCutoffDate}',
+                          if (expense.formattedDueDate != null)
+                            'Pago: ${expense.formattedDueDate}',
                         ].join(' • '),
                         style: TextStyle(
                           fontSize: 12,
